@@ -25,7 +25,7 @@ This takes about 10 minutes:
 
 ## Step 0: Check current state
 
-Read `~/.claude/local-plugins/nsls-personal-toolkit/.env` (if it exists). Identify which values are set and which are empty or missing. If everything is already set, confirm and offer to reconfigure.
+Read `~/Projects/pp-fork/.env` (if it exists). Identify which values are set and which are empty or missing. If everything is already set, confirm and offer to reconfigure.
 
 ## Step 1: Knowledge Base (Obsidian) — ~5 min
 
@@ -142,7 +142,7 @@ If yes: tell them the first `/role-coach --week` run starts the interview (role-
 
 ## Step 4: Write Config and Confirm
 
-Write `~/.claude/local-plugins/nsls-personal-toolkit/.env`:
+Write `~/Projects/pp-fork/.env`:
 
 ```
 # Personal Toolkit Configuration
@@ -185,7 +185,7 @@ After writing the .env, check whether the builder is an SLT member who should be
 PYTHONPATH=/tmp/pptx_deps python3.12 << 'PYEOF'
 import os, pathlib, re, subprocess
 
-env_path = pathlib.Path.home() / '.claude/local-plugins/nsls-personal-toolkit/.env'
+env_path = pathlib.Path.home() / 'Projects/pp-fork/.env'
 authors_path = pathlib.Path.home() / 'nsls-skills/nsls-personal-toolkit/skills/harvest-meeting/kb_authors.txt'
 if not authors_path.exists():
     authors_path = pathlib.Path.home() / '.claude/plugins/nsls-personal-toolkit/skills/harvest-meeting/kb_authors.txt'
@@ -302,7 +302,7 @@ Other things you can do:
   /person-intelligence     — relationship profiles
 
 Your .env file is at:
-  ~/.claude/local-plugins/nsls-personal-toolkit/.env
+  ~/Projects/pp-fork/.env
 
 This file is gitignored — your keys stay on your machine.
 Edit any skill in the toolkit — they're yours to customize.

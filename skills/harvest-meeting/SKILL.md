@@ -108,7 +108,7 @@ toolkit_dir = pathlib.Path.home() / 'nsls-skills/nsls-personal-toolkit'
 
 # .env candidates — local-plugins symlink path first (canonical), then repo path
 env_candidates = [
-    pathlib.Path.home() / '.claude/local-plugins/nsls-personal-toolkit/.env',
+    pathlib.Path.home() / 'Projects/pp-fork/.env',
     pathlib.Path.home() / 'nsls-skills/nsls-personal-toolkit/.env',
 ]
 env_file = next((p for p in env_candidates if p.exists()), None)

@@ -13,7 +13,7 @@ Sunday evening or Monday morning, before the first meeting of the week.
 
 ## Asana Reference
 
-Read these from `~/.claude/local-plugins/nsls-personal-toolkit/.env`:
+Read these from `~/Projects/pp-fork/.env`:
 - **Workspace GID:** `$ASANA_WORKSPACE_GID`
 - **User GID:** `$ASANA_USER_GID`
 
@@ -54,7 +54,7 @@ Pull open tasks from whichever task system the builder uses. Most builders use o
 - Asana (default — query via Asana MCP)
 - Airtable Meeting Actions (NSLS pattern — Fathom auto-extracts SLT/1:1 action items into Airtable)
 
-**Detection:** check `~/.claude/local-plugins/nsls-personal-toolkit/.env` for `ASANA_USER_GID`. If it's set and uncommented, use Asana (1b.1). If it's missing/commented, fall back to Airtable Meeting Actions (1b.2). Run **both** if both are configured — combine the results.
+**Detection:** check `~/Projects/pp-fork/.env` for `ASANA_USER_GID`. If it's set and uncommented, use Asana (1b.1). If it's missing/commented, fall back to Airtable Meeting Actions (1b.2). Run **both** if both are configured — combine the results.
 
 **1b.1 — Asana**
 
@@ -273,7 +273,7 @@ Also check if the operating memo's `next-review` date has passed. If so, nudge: 
 
 Check if the builder has automations that could be moved toward Org-Owned.
 
-1. Read builder email from `~/.claude/local-plugins/nsls-personal-toolkit/.env` or `git config user.email`
+1. Read builder email from `~/Projects/pp-fork/.env` or `git config user.email`
 2. Call `GET https://web-production-6281e.up.railway.app/builder-stats/{email}`
 3. If the builder has no automations, skip this step silently
 4. If the builder has automations at Prototype or Production, surface them:
@@ -450,7 +450,7 @@ manager's operating rhythm for the week. Pull it:
 
 ```bash
 SIGNAL_INGEST=1 OBSIDIAN_VAULT_PATH="$OBSIDIAN_VAULT_PATH" python3.12 \
-  ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/surface_management_for_week.py
+  ~/Projects/pp-fork/skills/person-intelligence/scripts/surface_management_for_week.py
 ```
 
 Returns `{week_label, submitted, team_size, wins_count, celebrate_candidates,
@@ -462,7 +462,7 @@ episodes across weeks so a resolved-but-never-closed loop keeps rolling forward:
 
 ```bash
 SIGNAL_INGEST=1 OBSIDIAN_VAULT_PATH="$OBSIDIAN_VAULT_PATH" python3.12 \
-  ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/loop_ledger.py --update
+  ~/Projects/pp-fork/skills/person-intelligence/scripts/loop_ledger.py --update
 ```
 
 Returns `{close_the_loop:[{person,themes,resolved_week}], open:[{person,themes,weeks_open}],
@@ -643,12 +643,12 @@ If fewer than 14 days have passed, skip silently.
 Collect all NSLS people on this week's calendar and run the action surfacer in weekly mode (cap 5):
 
 ```bash
-OPERATING_USER_EMAIL=$(grep '^OPERATING_USER_EMAIL=' ~/.claude/local-plugins/nsls-personal-toolkit/.env | cut -d= -f2 | tr -d '"') \
+OPERATING_USER_EMAIL=$(grep '^OPERATING_USER_EMAIL=' ~/Projects/pp-fork/.env | cut -d= -f2 | tr -d '"') \
 OBSIDIAN_VAULT_PATH="$OBSIDIAN_VAULT_PATH" \
-python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/extract_coaching_actions.py 2>/dev/null
+python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/extract_coaching_actions.py 2>/dev/null
 
 echo "$WEEK_ATTENDEES" | python3.12 \
-  ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/surface_actions_for_day.py \
+  ~/Projects/pp-fork/skills/person-intelligence/scripts/surface_actions_for_day.py \
   --people-stdin --weekly
 ```
 
@@ -738,8 +738,8 @@ The weekly note must include a Learning Plan section after the Top 3:
 
 **Resolving the binary path** (same lookup as open-day Step 8):
 ```bash
-TC="$HOME/.claude/local-plugins/nsls-personal-toolkit/companion/.venv/bin/toolkit-companion"
-[ -x "$TC" ] || TC="$HOME/.claude/local-plugins/nsls-personal-toolkit/companion/.venv/Scripts/toolkit-companion.exe"  # Windows
+TC="$HOME/Projects/pp-fork/companion/.venv/bin/toolkit-companion"
+[ -x "$TC" ] || TC="$HOME/Projects/pp-fork/companion/.venv/Scripts/toolkit-companion.exe"  # Windows
 [ -x "$TC" ] || TC="$(command -v toolkit-companion 2>/dev/null)"
 ```
 

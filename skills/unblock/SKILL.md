@@ -26,7 +26,7 @@ under `~/.claude/` — a built-in config-protection guardrail that sits *outside
 the normal permission-mode system, so even `bypassPermissions` / an allow-edit
 rule won't silence it (GitHub issues #15921, #66525, #37253).
 
-The toolkit installs to `~/.claude/local-plugins/nsls-personal-toolkit/`. So the
+The toolkit installs to `~/Projects/pp-fork/`. So the
 moment you try to edit your own toolkit *in the VS Code extension*, every edit is
 under `~/.claude/` and every edit gets gated. The CLI doesn't have this problem;
 it's specific to the VS Code extension surface.
@@ -45,7 +45,7 @@ Only proceed if the symptom matches. Check:
    (real permission rules, a hook). Don't set up a worktree they don't need.
 2. **The files being edited are under `~/.claude/`.** Run:
    ```bash
-   ls -d ~/.claude/local-plugins/nsls-personal-toolkit 2>/dev/null && echo "toolkit is under ~/.claude (the trap applies)"
+   ls -d ~/Projects/pp-fork 2>/dev/null && echo "toolkit is under ~/.claude (the trap applies)"
    ```
 3. **The prompts are edit/write confirmations on those files**, repeated, despite
    permissions allowing edits.
@@ -61,7 +61,7 @@ edits don't disturb whatever the installed plugin is checked out at.
 
 ```bash
 # 1. Find the installed toolkit repo (the git root under ~/.claude).
-TOOLKIT=~/.claude/local-plugins/nsls-personal-toolkit
+TOOLKIT=~/Projects/pp-fork
 git -C "$TOOLKIT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
   echo "Not a git repo at $TOOLKIT — use the clone+symlink fallback below."; exit 1; }
 
@@ -96,7 +96,7 @@ merge step, replace the installed directory with a symlink to a clone that lives
 outside `~/.claude/`:
 
 ```bash
-TOOLKIT=~/.claude/local-plugins/nsls-personal-toolkit
+TOOLKIT=~/Projects/pp-fork
 DEST=~/dev/nsls-personal-toolkit
 
 # Clone (or move) the repo to a non-protected path.

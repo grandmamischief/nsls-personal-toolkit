@@ -4,6 +4,14 @@ Personal productivity skills for [Claude Code](https://claude.ai/code). Daily pl
 
 **This is a starter template.** Fork it, make it yours.
 
+> **👋 Heads up — this is Davo's personal fork** (`davo/todoist` branch). It adds a
+> [Todoist integration](docs/plans/todoist-personal-fork.md) to open-day/close-day:
+> Todoist lists seed the morning suggestions with provenance chips, and plan/close
+> decisions sync back (complete/delete/label) via the Todoist MCP server. It's
+> profile-gated (`todoist_sync: on`) and off in `-t` test mode, so the vanilla flow
+> is unchanged. Upstream is [thensls/nsls-personal-toolkit](https://github.com/thensls/nsls-personal-toolkit);
+> general fixes go there, not here. After merging upstream, run `scripts/fork-repath.sh`.
+
 ## Install
 
 **Easiest way:** Install the [NSLS Builder Toolkit](https://github.com/thensls/nsls-builder-toolkit) first, then say `/setup` in Claude Code — it offers to install this automatically.
@@ -42,7 +50,7 @@ A browser-based view onto your toolkit data, running locally at `http://localhos
 Install during the main `install.sh` flow when prompted, or later:
 
 ```bash
-cd ~/.claude/local-plugins/nsls-personal-toolkit/companion
+cd ~/Projects/pp-fork/companion
 pip install -e .
 toolkit-companion serve
 ```

@@ -73,7 +73,7 @@ hard safety guard so it can **never** delete real data.
 lookup open-day Step 8 uses), point the vault at the test vault, and *assert* it:
 
 ```bash
-VENV="$HOME/.claude/local-plugins/nsls-personal-toolkit/companion/.venv"
+VENV="$HOME/Projects/pp-fork/companion/.venv"
 TC="$VENV/bin/toolkit-companion"
 [ -x "$TC" ] || TC="$VENV/Scripts/toolkit-companion.exe"
 [ -x "$TC" ] || TC="$(command -v toolkit-companion 2>/dev/null)"

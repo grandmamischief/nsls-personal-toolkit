@@ -29,7 +29,7 @@ Synthesize the builder's full day from seven data sources into a daily note and 
 
 ## Builder Context
 
-Read these from `~/.claude/local-plugins/nsls-personal-toolkit/.env` before running any subsequent step, then substitute `${VAR_NAME}` references throughout this skill with the actual values:
+Read these from `~/Projects/pp-fork/.env` before running any subsequent step, then substitute `${VAR_NAME}` references throughout this skill with the actual values:
 
 - `${OBSIDIAN_VAULT_PATH}` — vault location (used by daily note writes + session log scans)
 - `${SLACK_USER_ID}` — Slack user ID (used in `from:` / `to:` search queries)
@@ -86,7 +86,7 @@ export OBSIDIAN_VAULT_PATH="$("$TC" test-vault)" || { echo "Test-vault setup fai
 
 **The guard is load-bearing:** if `"$TC"` can't be resolved or `test-vault` fails, `OBSIDIAN_VAULT_PATH` would otherwise stay pointed at the **real** vault and the run would close real notes. In test mode, a failed setup must **abort** — never fall through to Step 0.5's chat fallback against the real vault.
 
-`test-vault` creates + seeds the vault (`~/.claude/local-plugins/nsls-personal-toolkit/companion-test-vault/`, gitignored) and prints its path; it never overwrites existing notes. Every downstream step then reads and writes the test vault, and the companion shows a gold **TEST** banner. Pair with `open day -t` (plan into the test vault first) and `reset-day -t` (clear it).
+`test-vault` creates + seeds the vault (`~/Projects/pp-fork/companion-test-vault/`, gitignored) and prints its path; it never overwrites existing notes. Every downstream step then reads and writes the test vault, and the companion shows a gold **TEST** banner. Pair with `open day -t` (plan into the test vault first) and `reset-day -t` (clear it).
 
 **No collision with your real companion.** The test server is a separate instance on its own port (**7788**, vs the real **7777**) with its own pidfile (`.companion-test.pid`). In Step 0.5, when in test mode use the `--test` flag (`"$TC" status --test`) and never `"$TC" stop` without it — that would hit the real companion. If the test companion isn't already running, Step 0.5's start-if-needed step brings it up (against the test vault); if it still can't start, close-day simply closes in chat against the test vault.
 
@@ -98,8 +98,8 @@ The close routes through the **CLI companion** by default (Step 0.5 starts it if
 
 **Resolving the binary path** (same lookup as open-day Step 8):
 ```bash
-TC="$HOME/.claude/local-plugins/nsls-personal-toolkit/companion/.venv/bin/toolkit-companion"
-[ -x "$TC" ] || TC="$HOME/.claude/local-plugins/nsls-personal-toolkit/companion/.venv/Scripts/toolkit-companion.exe"  # Windows
+TC="$HOME/Projects/pp-fork/companion/.venv/bin/toolkit-companion"
+[ -x "$TC" ] || TC="$HOME/Projects/pp-fork/companion/.venv/Scripts/toolkit-companion.exe"  # Windows
 [ -x "$TC" ] || TC="$(command -v toolkit-companion 2>/dev/null)"
 ```
 
@@ -157,7 +157,7 @@ Read the **target date's** daily note (`$OBSIDIAN_VAULT_PATH/01-daily/<target-da
 
 Use all of the above to:
 1. **Report a brief "Priorities vs. Reality" read** in the Step 4 summary — each Top 3 item with its outcome (done / NN% / not started / carried), plus any Unplanned wins.
-2. **Seed Carrying Over** — any Top 3 **or Bonus** item that is <100%, **plus any item the builder moved to `### Deferred`** (defer = "not today, but keep it" — explicitly *not* a delete), that isn't already under `## Carrying Over` is a carry-over candidate; add it so it resurfaces in tomorrow's `/open-day`. Skip **only** items the builder **deleted** (`### Deleted`). **Preserve the time estimate:** if the item carries an `<!--e:X-->` marker (estimated *remaining* time — the builder may have updated it during the day), append that exact marker to the carry-over line (e.g. `- Reply to vendor thread <!--e:0.5-->`). The companion reads it to pre-fill tomorrow's estimate field; dropping it loses the builder's timeboxing data.
+2. **Seed Carrying Over** — any Top 3 **or Bonus** item that is <100%, **plus any item the builder moved to `### Deferred`** (defer = "not today, but keep it" — explicitly *not* a delete), that isn't already under `## Carrying Over` is a carry-over candidate; add it so it resurfaces in tomorrow's `/open-day`. Skip **only** items the builder **deleted** (`### Deleted`). **Preserve the time estimate:** if the item carries an `<!--e:X-->` marker (estimated *remaining* time — the builder may have updated it during the day), append that exact marker to the carry-over line (e.g. `- Reply to vendor thread <!--e:0.5-->`). The companion reads it to pre-fill tomorrow's estimate field; dropping it loses the builder's timeboxing data. <!-- PERSONAL FORK: TODOIST --> **Preserve the Todoist link the same way:** if the item carries a `<!--td:ID|proj|list-->` marker, append that exact marker to the carry-over line too (after the `<!--e:X-->` if both exist). Dropping it orphans the item from its canonical Todoist task and the next sync would re-match or duplicate it. <!-- END PERSONAL FORK -->
 3. **Feed the Work Log and Insight Reflection** (b) and (c) above.
 
 `<!--p:NN-->` markers and the `### Unplanned` / `### Done` / `### Deleted` / `### Deferred` / `## Daily Insight` sections are companion-written — read them, never author them from the skill. In CLI-only mode they simply won't be present. **Never create a `### Unplanned` (or `### Done`/`### Deleted`/`### Deferred`) heading anywhere else in the note — especially not under `## End of Day`.** The companion reads these only from inside `## Morning Check-in`; a same-named heading elsewhere makes builder input invisible (this happened: an End-of-Day `### Unplanned` swallowed unplanned wins silently).
@@ -1212,6 +1212,35 @@ After the builder confirms, execute: create Asana tasks for Task items (using `c
 
 **Do not create Asana tasks for items that are already in Asana or already in today's Carrying Over section.** Deduplicate before proposing.
 
+<!-- ═══════════ PERSONAL FORK: TODOIST — SYNC-B (start) ═══════════
+     Fork-only block; keep the fences when merging upstream/main.
+     Spec: docs/plans/todoist-personal-fork.md -->
+
+### Step 7.5: Sync Todoist — SYNC-B (PERSONAL FORK — gated)
+
+**Gate:** same as open-day Step 2m — NOT test mode (`-t`), and `todoist_sync: on` in the frontmatter of `$OBSIDIAN_VAULT_PATH/50-reference/builder-profile.md`. Skip silently otherwise. Load the Todoist MCP tools (ToolSearch, `+todoist`); if the server is missing or unauthenticated, add one ⚠️ line to the close summary and continue — **never block the close on Todoist**.
+
+Runs AFTER the fresh close confirmation (Step 0.5) and the Step 1 read — the day's dispositions are final. **Davo's standing decisions (2026-07-15):** companion clicks are his explicit per-task instructions (Delete means delete), and a batch sync with an audit is not a "silent" change. Do not re-ask for these.
+
+Using the **target date's** note, markers included:
+
+1. **Re-read every marked task by id before touching it** — human/Codex edits win. A task already completed or deleted in Todoist is a report line, not an error, and is never resurrected.
+2. **Apply, idempotently:**
+   - Top 3 / Bonus rows with markers at **100% progress (or `[x]`)** → **complete** the task.
+   - Rows **<100%** → leave the task open and today-labeled. Todoist's Today is a persistent working state — it carries across midnight on its own; the note's Carrying Over seeding (Step 1) rides alongside unchanged.
+   - `### Deleted` rows with markers → **delete** the task.
+   - `### Deferred` rows with markers → strip `today_*` labels + tier-preserving week bump (`today_priority` → keeps `week_priority`; `today_bonus` → add `week_bonus`).
+   - Rows **without markers** the builder added during the day (Command Center bonus adds, hand edits) → match/create exactly like open-day Step 7.5: high-confidence match → apply labels AND write the `<!--td:-->` marker into the note line; no match → **create** (project you're confident about, else **Inbox** — no blocking questions) and flag it.
+   - `### Unplanned` items: **out of scope v1** — records of unplanned work, not tasks; create nothing from them.
+   - **Never touch** `daily_anchor` tasks or the Habits project.
+   - **Past-date close** (catching up an old day): completions and deletions still apply — they're still true. Skip the today-label bumps (that "today" is long gone) and note the skip in the audit.
+3. **Write/replace the top-level `## Todoist Sync` section in the TARGET date's note** — same format as open-day Step 7.5 (omit empty groups; ⚠️ suffix on Inbox placements; ⚠️ conflict lines where Todoist and the note disagreed — Todoist wins on existence/done). The companion renders it on the Command Center.
+4. **Fold ONE line into the Step 9 confirmation:** *"Todoist: N completed, M deleted, K bumped[, J created]."* Plus any ⚠️ lines verbatim. No play-by-play.
+
+If Todoist errors mid-way: finish what you can, add `- ⚠️ Sync incomplete: [why]` to the section, and keep the close moving.
+
+<!-- ═══════════ PERSONAL FORK: TODOIST — SYNC-B (end) ═══════════ -->
+
 ### Step 8: Seed tomorrow's daily note
 
 Check if tomorrow's note exists at `${OBSIDIAN_VAULT_PATH}/01-daily/YYYY-MM-DD+1.md`. If it does NOT exist, create it with this template:
@@ -1259,6 +1288,12 @@ SORT priority ASC
 This seeds the next day with the AI-suggested priorities so the builder sees them first thing in the morning. They overwrite "My Top 3" with his actual priorities during `/open-day` or manually.
 
 If the file already exists (user or `/open-day` already created it), do NOT overwrite. Instead, check if it has the AI suggestion sections (`### AI Suggested: …`). If not, insert them as `###` subsections **inside** `## Morning Check-in` — specifically, between the `## Morning Check-in` heading and the `### My Top 3` heading (or at the end of the section if `### My Top 3` doesn't exist yet). The companion's parser only reads AI suggestions from within `## Morning Check-in`, so placing them anywhere else makes them invisible.
+
+<!-- PERSONAL FORK: TODOIST — when an item you seed into tomorrow's AI
+     Suggested sections came from a line carrying a <!--td:ID|proj|list-->
+     marker, keep that exact marker on the seeded line (last, after any
+     <!--e:X-->). Items whose tasks were completed or deleted in Step 7.5
+     are gone — never seed those. <!-- END PERSONAL FORK -->
 
 ### Step 9: Confirm
 

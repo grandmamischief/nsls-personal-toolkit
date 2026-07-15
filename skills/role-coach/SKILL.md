@@ -15,7 +15,7 @@ description: >-
 
 Coach the user on the best way to contribute from their seat — the role they have (the floor) and the role they want (the horizon) — using cited evidence and a pattern ledger so advice compounds instead of repeating.
 
-Read `OBSIDIAN_VAULT_PATH` from `~/.claude/local-plugins/nsls-personal-toolkit/.env`.
+Read `OBSIDIAN_VAULT_PATH` from `~/Projects/pp-fork/.env`.
 
 **REQUIRED READING before Step 3:** `references/coaching-pattern.md` (the coaching engine — evidence rules, phrasing rules, escalation ladder, tone). Do not synthesize coaching without it.
 

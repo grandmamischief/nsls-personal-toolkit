@@ -68,7 +68,7 @@ vault = pathlib.Path(os.environ.get('OBSIDIAN_VAULT_PATH', ''))
 kb_dir = vault / '60-nsls-knowledge'
 toolkit_dir = pathlib.Path.home() / 'nsls-skills/nsls-personal-toolkit'
 env_candidates = [
-    pathlib.Path.home() / '.claude/local-plugins/nsls-personal-toolkit/.env',
+    pathlib.Path.home() / 'Projects/pp-fork/.env',
     pathlib.Path.home() / 'nsls-skills/nsls-personal-toolkit/.env',
 ]
 env_file = next((p for p in env_candidates if p.exists()), None)

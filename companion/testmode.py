@@ -24,7 +24,7 @@ TEST_VAULT_NAME = "companion-test-vault"
 
 # Toolkit root = the parent of the ``companion`` package dir (the same anchor
 # cli.py uses for TEMPLATES_DIR). Installed, that's
-# ~/.claude/local-plugins/nsls-personal-toolkit/ ; in a worktree it's the
+# ~/Projects/pp-fork/ ; in a worktree it's the
 # worktree root. The test vault sits alongside the package either way.
 _TOOLKIT_ROOT = Path(__file__).resolve().parent.parent
 

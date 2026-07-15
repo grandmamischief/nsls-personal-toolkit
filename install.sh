@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-PLUGIN_DIR="$HOME/.claude/local-plugins/nsls-personal-toolkit"
+PLUGIN_DIR="$HOME/Projects/pp-fork"
 
 # Cross-platform Python launcher: python3 on macOS/Linux, often just `python`
 # on Windows. Prefer python3, fall back to python. Use "$PY -m pip" everywhere
@@ -24,7 +24,7 @@ case "$(uname -s 2>/dev/null)" in
 esac
 
 install_companion_launchd() {
-  local plugin_dir="$HOME/.claude/local-plugins/nsls-personal-toolkit"
+  local plugin_dir="$HOME/Projects/pp-fork"
   local plist_dest="$HOME/Library/LaunchAgents/com.nsls.toolkit-companion.plist"
 
   # Resolve vault path via Python (handles env var, builder-profile, and prompt)
@@ -111,14 +111,14 @@ echo ""
 read -p "Install the web companion (browser-based UI)? [Y/n] " yn
 if [[ "${yn:-y}" =~ ^[Yy] ]]; then
   if [ -n "$PY" ]; then
-    (cd "$HOME/.claude/local-plugins/nsls-personal-toolkit/companion" && "$PY" -m pip install -e . -q)
+    (cd "$HOME/Projects/pp-fork/companion" && "$PY" -m pip install -e . -q)
     echo "✓ Installed nsls-toolkit-companion CLI"
 
     if [ "$OS_CLASS" = "windows" ]; then
       # On Windows the console script is companion/.venv/Scripts/toolkit-companion.exe.
       # Symlinks need admin/developer mode, so don't try — the skills resolve
       # the Scripts/ path directly.
-      win_bin="$HOME/.claude/local-plugins/nsls-personal-toolkit/companion/.venv/Scripts/toolkit-companion.exe"
+      win_bin="$HOME/Projects/pp-fork/companion/.venv/Scripts/toolkit-companion.exe"
       echo "  ℹ Windows: the companion binary is at"
       echo "      $win_bin"
       echo "    The skills resolve this automatically; no symlink needed."
@@ -126,7 +126,7 @@ if [[ "${yn:-y}" =~ ^[Yy] ]]; then
       # Externally-managed Python forces pip into a venv, so the binary lives at
       # companion/.venv/bin/toolkit-companion and is NOT on PATH in fresh shells.
       # Symlink it to ~/.local/bin (on $PATH by default in modern shells).
-      venv_bin="$HOME/.claude/local-plugins/nsls-personal-toolkit/companion/.venv/bin/toolkit-companion"
+      venv_bin="$HOME/Projects/pp-fork/companion/.venv/bin/toolkit-companion"
       if [ -x "$venv_bin" ]; then
         mkdir -p "$HOME/.local/bin"
         link_target="$HOME/.local/bin/toolkit-companion"

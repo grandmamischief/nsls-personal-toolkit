@@ -46,7 +46,7 @@ When a skill calls an HTTP API that reads an API key from the environment (e.g.,
 - **Never** inline the secret value in a Bash command. Patterns like `export AIRTABLE_API_KEY=patW...; python3 -c "..."` echo the literal key into the tool log, the conversation transcript on disk, and any request logs upstream. That key is then leaked even if it was previously private.
 - **Always** source the env file first, then reference only the variable name:
   ```bash
-  set -a; source /Users/claw/.claude/local-plugins/nsls-personal-toolkit/.env; set +a
+  set -a; source /Users/claw/Projects/pp-fork/.env; set +a
   python3 -c "import os; print(len(os.environ['AIRTABLE_API_KEY']))"
   ```
   Only the variable *name* appears in the command; the value stays in the file.

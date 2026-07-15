@@ -29,7 +29,7 @@ Also use when **starting a brand-new project** — the skill will scaffold a new
 
 ## Vault location
 
-Read `OBSIDIAN_VAULT_PATH` from `~/.claude/local-plugins/nsls-personal-toolkit/.env`.
+Read `OBSIDIAN_VAULT_PATH` from `~/Projects/pp-fork/.env`.
 
 Project logs live at:
 ```

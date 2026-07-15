@@ -40,7 +40,7 @@ Before doing anything else, parse the builder's invocation phrase to choose a mo
 export OBSIDIAN_VAULT_PATH="$("$TC" test-vault)"
 ```
 
-`test-vault` creates + seeds the vault (`~/.claude/local-plugins/nsls-personal-toolkit/companion-test-vault/`, gitignored) on first use and prints its path; it never overwrites existing notes. Every downstream step — data collection, writing the daily note, and the Step 8 `serve` — then targets the test vault automatically. The companion shows a gold **TEST** banner so it's unmistakable. (Calendar/Asana reads are still your real, read-only data; only what gets *written* is redirected.) `-t` composes with `-v` and `-r`. To clear the test day and start over, run `reset-day -t`.
+`test-vault` creates + seeds the vault (`~/Projects/pp-fork/companion-test-vault/`, gitignored) on first use and prints its path; it never overwrites existing notes. Every downstream step — data collection, writing the daily note, and the Step 8 `serve` — then targets the test vault automatically. The companion shows a gold **TEST** banner so it's unmistakable. (Calendar/Asana reads are still your real, read-only data; only what gets *written* is redirected.) `-t` composes with `-v` and `-r`. To clear the test day and start over, run `reset-day -t`.
 
 **No collision with your real companion.** A test server is a fully separate instance — it binds its own port (**7788**, vs the real companion's **7777**) and writes its own pidfile (`.companion-test.pid`). So `open day -t` can never displace, stop, or be confused with a real `open day` already running. In Step 8, when in test mode, manage the companion with the `--test` flag (`"$TC" status --test`; `serve` auto-detects the test vault and picks 7788) and open the **7788** URL. Never run `"$TC" stop` (no flag) in test mode — that targets the real companion.
 
@@ -60,7 +60,7 @@ When `visual_mode` is **on** (the default):
   3. **Reasonable, generated** — only if there's nothing real (fresh user, no prior close, e.g. first run or after a reset on an empty week): generate 3 sensible suggestions from what you DO know — the builder profile (role, projects in `20-projects/`, operating memo), this week's stack rank, today's calendar. Mark them plainly (e.g. a one-line note "suggested from your role/projects — no prior close-day to pull from"). Keep them realistic, not filler. This guarantees the companion always has something to react to — important for new users and testing.
 - **Skip Steps 3, 4, 4a, 5** — the companion handles priority selection, not chat.
 - **Step 8**: Open the visual companion and stop. Print exactly: *"Continue in the browser at <url>. Pick your Top 3, review suggestions, then click Done. Say 'done' here when you're ready."* **Then stop. Do not print coaching, suggestions, or commentary.**
-- **On "done"**: Re-read the daily note, extract Top 3 + Bonus + habits, print a brief summary (under 12 lines). No coaching unless asked. Then arm the all-day close listener (Step 8.6) so the builder can close their day by clicking the Command Center's "I'm done" button — no terminal needed.
+- **On "done"**: Re-read the daily note, extract Top 3 + Bonus + habits, print a brief summary (under 12 lines). No coaching unless asked. <!-- PERSONAL FORK: TODOIST --> Then run **Step 7.5 (Todoist reconcile — SYNC-A)** — it needs the finalized plan, and it must finish before the listener is armed. <!-- END PERSONAL FORK --> Then arm the all-day close listener (Step 8.6) so the builder can close their day by clicking the Command Center's "I'm done" button — no terminal needed.
 
 ### Seeding Principle: everything is a priority candidate by default
 
@@ -92,7 +92,7 @@ Morning, before first meeting. Can also be triggered mid-day to reset priorities
 
 ## Asana Reference
 
-Read these from `~/.claude/local-plugins/nsls-personal-toolkit/.env` or `$OBSIDIAN_VAULT_PATH/50-reference/builder-profile.md`:
+Read these from `~/Projects/pp-fork/.env` or `$OBSIDIAN_VAULT_PATH/50-reference/builder-profile.md`:
 - **Workspace GID:** `$ASANA_WORKSPACE_GID`
 - **User GID:** `$ASANA_USER_GID`
 
@@ -345,13 +345,13 @@ Also read:
 
 **2i. Open PRs on watched repos**
 
-Surface open pull requests on repos the builder maintains so they don't sit forgotten. Skip silently if `PR_WATCH_REPOS` is not set in `~/.claude/local-plugins/nsls-personal-toolkit/.env`, or if the `gh` CLI is unavailable.
+Surface open pull requests on repos the builder maintains so they don't sit forgotten. Skip silently if `PR_WATCH_REPOS` is not set in `~/Projects/pp-fork/.env`, or if the `gh` CLI is unavailable.
 
 `PR_WATCH_REPOS` format: comma-separated `owner/repo` pairs.
 Example: `PR_WATCH_REPOS=thensls/nsls-builder-toolkit,thensls/nsls-personal-toolkit`
 
 ```bash
-REPOS=$(grep '^PR_WATCH_REPOS=' ~/.claude/local-plugins/nsls-personal-toolkit/.env 2>/dev/null | cut -d= -f2- | tr -d ' ')
+REPOS=$(grep '^PR_WATCH_REPOS=' ~/Projects/pp-fork/.env 2>/dev/null | cut -d= -f2- | tr -d ' ')
 # Safety: must have a non-empty list AND it must contain a slash (owner/repo).
 # Without this, `gh search prs --state open` would query all of GitHub.
 if [ -n "$REPOS" ] && [[ "$REPOS" == *"/"* ]] && command -v gh >/dev/null; then
@@ -490,6 +490,32 @@ goal_cues = [{
 
 Skip this step silently if no goal files exist or none fire today.
 
+<!-- ═══════════ PERSONAL FORK: TODOIST (davo/todoist) — start ═══════════
+     Fork-only block; upstream never has these fences. Keep them intact when
+     merging upstream/main. Spec: docs/plans/todoist-personal-fork.md -->
+
+**2m. Todoist — Today + Week-Priority lists (PERSONAL FORK — gated)**
+
+**Gate — check BOTH, silently skip this step when either fails:**
+1. NOT test mode (`-t`). `open day -t` is the vanilla teammate experience — no Todoist anywhere.
+2. `todoist_sync: on` in the frontmatter of `$OBSIDIAN_VAULT_PATH/50-reference/builder-profile.md`.
+
+When gated on, load the Todoist MCP tools (ToolSearch, query `+todoist`). If the server is missing or unauthenticated, print ONE line — *"Todoist MCP unavailable — planning without it (re-auth via /mcp in a terminal session)."* — and continue the ritual normally. **Never block the morning on Todoist.**
+
+Fetch **open** tasks (read-only at this step):
+- Today view: label `today_priority`, label `today_bonus`
+- Week view: label `week_priority` — **NOT `week_bonus`** (deliberately excluded; Davo 2026-07-15)
+
+Capture per task: id, content, project name, labels.
+
+**Exclude:** anything in the **Habits** project (the companion owns habit tracking) · tasks labeled `daily_anchor` (the Open Day / Close Day anchor tasks themselves) · completed tasks · `week_priority` tasks already captured via a today label (a task can hold both — today wins).
+
+Map each remaining task to a seed item for Step 6 and the Step 7.5 reconcile:
+- `text` = task content, verbatim
+- marker payload = `<todoist-id>|<project-slug>|<list>` — project slug ∈ `nsls` · `whisprcoach` · `general` · `personal` · `3breaths` · `inbox` (lowercase, no spaces); list = `tp` (today_priority) · `tb` (today_bonus) · `wp` (week_priority)
+
+<!-- ═══════════ PERSONAL FORK: TODOIST — end ═══════════ -->
+
 ### Step 3: Draft Morning Check-in
 
 Present to the builder. If AI suggestions were seeded by close-day, show them first:
@@ -529,13 +555,13 @@ After displaying today's meetings, collect the names of all attendees who are NS
 
 ```bash
 # First make sure the action cache is fresh — extract from current profiles
-OPERATING_USER_EMAIL=$(grep '^OPERATING_USER_EMAIL=' ~/.claude/local-plugins/nsls-personal-toolkit/.env | cut -d= -f2 | tr -d '"') \
+OPERATING_USER_EMAIL=$(grep '^OPERATING_USER_EMAIL=' ~/Projects/pp-fork/.env | cut -d= -f2 | tr -d '"') \
 OBSIDIAN_VAULT_PATH="$OBSIDIAN_VAULT_PATH" \
-python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/extract_coaching_actions.py 2>/dev/null
+python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/extract_coaching_actions.py 2>/dev/null
 
 # Then surface up to 3 actions, prioritized by today's calendar
 echo "$ATTENDEE_NAMES" | python3.12 \
-  ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/surface_actions_for_day.py \
+  ~/Projects/pp-fork/skills/person-intelligence/scripts/surface_actions_for_day.py \
   --people-stdin
 ```
 
@@ -575,12 +601,12 @@ celebrate a win, develop toward a goal, remove a friction. Same `$ATTENDEE_NAMES
 ```bash
 SIGNAL_INGEST=1 OBSIDIAN_VAULT_PATH="$OBSIDIAN_VAULT_PATH" \
 echo "$ATTENDEE_NAMES" | python3.12 \
-  ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/surface_management_for_day.py \
+  ~/Projects/pp-fork/skills/person-intelligence/scripts/surface_management_for_day.py \
   --people-stdin --weeks 4
 
 # Loops to close with people you're seeing today (durable ledger, Phase 4):
 SIGNAL_INGEST=1 OBSIDIAN_VAULT_PATH="$OBSIDIAN_VAULT_PATH" python3.12 \
-  ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/loop_ledger.py \
+  ~/Projects/pp-fork/skills/person-intelligence/scripts/loop_ledger.py \
   --for "$ATTENDEE_NAMES"
 ```
 
@@ -896,6 +922,33 @@ hrv_ms: 61
      • Keep the builder's own text verbatim (including a leading `P ` personal
        marker) — don't restyle or strip it. -->
 
+<!-- ═══════════ PERSONAL FORK: TODOIST — seeding (start) ═══════════
+     Only when Step 2m ran (gate passed AND fetch succeeded). Spec:
+     docs/plans/todoist-personal-fork.md -->
+### AI Suggested: Todoist Today
+1. [task content, verbatim] <!--td:ID|proj|tp-->
+2. [task content, verbatim] <!--td:ID|proj|tb-->
+
+### AI Suggested: Todoist Week Priority
+1. [task content, verbatim] <!--td:ID|proj|wp-->
+
+<!-- Todoist seeding rules:
+     • PLAIN numbered lines, never checkboxes — same contract as every other
+       AI-Suggested item (the extractor only reads numbered lines).
+     • The <!--td:ID|proj|list--> marker goes LAST on the line, after any
+       <!--e:X--> estimate. The companion strips it from display, renders the
+       project chip + Ⓣ badge from it, and carries it through every move.
+       Without the marker the item is disconnected text — the sync can't
+       find its task. Do not invent estimates for Todoist items.
+     • Order today_priority tasks first — they're the strongest candidates.
+     • Dedup by normalized text against the carry-over/AI items already in
+       the pool: when the same task appears twice, write ONE line — the one
+       WITH the marker. (The companion dedups defensively too, but don't
+       write known duplicates.)
+     • Todoist items are candidates like everything else — the Seeding
+       Principle applies unchanged and `### Bonus` stays empty. -->
+<!-- ═══════════ PERSONAL FORK: TODOIST — seeding (end) ═══════════ -->
+
 
 ### My Top 3
 1. [ ] [Priority #1 description] — [[project-slug]] *(week rank: N)*
@@ -993,6 +1046,54 @@ Count the totals: e.g., `2 adopted, 0 modified, 1 replaced`
 
 **Do NOT block the morning flow for this.** If you're in a hurry, skip the tracker.
 
+<!-- ═══════════ PERSONAL FORK: TODOIST — SYNC-A (start) ═══════════ -->
+
+### Step 7.5: Todoist reconcile — SYNC-A (PERSONAL FORK — gated)
+
+**Gate:** same as Step 2m (not `-t`, `todoist_sync: on`). Skip silently otherwise. If 2m was skipped or its fetch failed, skip this too.
+
+**When it runs — at plan-finalized time, exactly once:**
+- **Companion mode:** on the builder's "done" after planning (re-read the note first; run this BEFORE arming the close listener).
+- **Chat mode (visual off):** immediately after Step 6 writes the note.
+
+**Davo's standing decisions (2026-07-15):** his morning choices ARE decisions about Todoist. Full mirror at plan time; companion Delete = his explicit per-task delete request; batch syncs with an audit are not "silent" changes. Do not re-ask for these.
+
+**Procedure:**
+
+1. **Re-read the finalized note:** `### My Top 3`, `### Bonus`, and the disposition subsections (`### Done` / `### Deleted` / `### Deferred`), including each line's `<!--td:ID|proj|list-->` marker.
+2. **Re-read every involved Todoist task by id before touching it** (shared-agent rule — never overwrite a newer human/Codex edit). A task already completed or deleted in Todoist this morning is **reported, not resurrected**: Todoist wins on existence and done/not-done.
+3. **Apply, idempotently** (re-running on an unchanged plan must be a no-op):
+   - **Top 3, marked rows** → ensure labels `today_priority` + `week_priority`.
+   - **Top 3, unmarked rows** (typed) → fuzzy-match against the 2m fetch plus a fresh task search. High confidence → treat as linked: apply labels AND edit the note line to add its `<!--td:-->` marker. No match → **create** the task (project you're confident about; otherwise **Inbox** — never ask blocking questions) with `today_priority` + `week_priority`, then write the marker into the note line. Flag every Inbox placement in the report.
+   - **Bonus rows** → same, with label `today_bonus`.
+   - **Full mirror:** any OTHER open task still labeled `today_priority` or `today_bonus` that is NOT in the finalized plan **loses that today label** — bumped tier-preserving: `today_priority` → keeps `week_priority` (already implied); `today_bonus` → add `week_bonus`. Report every bump. This is what keeps the ≤3 `today_priority` cap honest.
+   - **`### Done` rows with markers** → complete the task (even if it was never taken into the plan).
+   - **`### Deleted` rows with markers** → **delete** the task.
+   - **`### Deferred` rows with markers** → strip `today_*` labels + tier-preserving week bump.
+   - **Never touch** `daily_anchor`-labeled tasks or the Habits project.
+4. **First run only** (no `## Todoist Sync` section exists in any prior daily note): fetch the **3 Breaths** project's collaborator list. If anyone besides Davo is a member, add a ⚠️ line to the report — he believes the board is effectively his alone (2026-07-15) and will want to align Codex's rules if it isn't.
+5. **Write the audit** as a top-level `## Todoist Sync` section (replace any existing one; keep it OUT of Morning Check-in). The companion renders it as a card in Plan Your Day and the Command Center. Format — omit empty groups:
+
+   ```markdown
+   ## Todoist Sync
+
+   *Synced HH:MM — say the word in chat if any of these are wrong.*
+
+   - ⭐ Today priority: [task] ([Proj]) · [task] ([Proj]) · [task] ([Proj])
+   - 🔖 Bonus today: [task] ([Proj])
+   - ✅ Completed: [task] ([Proj])
+   - 🗑 Deleted: [task] ([Proj])
+   - ⬇️ Bumped to week: [task] (was Today-Priority) · [task] (was Today-Bonus → Week-Bonus)
+   - ➕ Created: [task] → [Project]  ⚠️ Inbox — re-file if wrong   ← ⚠️ suffix only for Inbox placements
+   - ⚠️ Conflict: [task] — completed in Todoist at HH:MM but 50% here; left completed in Todoist
+   ```
+
+6. **In chat, ONE line:** *"Todoist synced: N updated, M created — details on the companion."* Plus any ⚠️ lines verbatim. No table, no play-by-play.
+
+If Todoist errors mid-way: finish what you can, add `- ⚠️ Sync incomplete: [why]` to the section, and keep the ritual moving.
+
+<!-- ═══════════ PERSONAL FORK: TODOIST — SYNC-A (end) ═══════════ -->
+
 ### Step 8: Open the visual companion (browser sidekick for the rest of the day)
 
 **Skip this entire step** if any of these is true:
@@ -1002,10 +1103,10 @@ Count the totals: e.g., `2 adopted, 0 modified, 1 replaced`
 
 When you skip, finish the morning ritual entirely in chat (Steps 3 and 4 in this skill already cover the chat-based draft + review of Top 3 / Bonus / etc.).
 
-**Resolving the binary path.** The install runs an editable pip install inside a venv at `~/.claude/local-plugins/nsls-personal-toolkit/companion/.venv/`, so on most installs the `toolkit-companion` binary is **not on PATH** in a fresh shell. The venv binary dir differs by OS — `bin/` on macOS/Linux, `Scripts/` (with a `.exe`) on Windows. Resolve it with this platform-aware lookup before invoking — never assume PATH:
+**Resolving the binary path.** The install runs an editable pip install inside a venv at `~/Projects/pp-fork/companion/.venv/`, so on most installs the `toolkit-companion` binary is **not on PATH** in a fresh shell. The venv binary dir differs by OS — `bin/` on macOS/Linux, `Scripts/` (with a `.exe`) on Windows. Resolve it with this platform-aware lookup before invoking — never assume PATH:
 
 ```bash
-VENV="$HOME/.claude/local-plugins/nsls-personal-toolkit/companion/.venv"
+VENV="$HOME/Projects/pp-fork/companion/.venv"
 TC="$VENV/bin/toolkit-companion"                      # macOS / Linux
 [ -x "$TC" ] || TC="$VENV/Scripts/toolkit-companion.exe"   # Windows (Git Bash)
 [ -x "$TC" ] || TC="$(command -v toolkit-companion 2>/dev/null)"

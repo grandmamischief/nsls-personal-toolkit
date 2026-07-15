@@ -11,14 +11,14 @@ Rules:
     `export FOO=...` or `FOO=... python3.12 script.py` still takes precedence.
   * First existing .env in the candidate list wins; we don't merge across files.
 
-The real .env lives at ~/.claude/local-plugins/nsls-personal-toolkit/.env and is
+The real .env lives at ~/Projects/pp-fork/.env and is
 git-ignored, so it is NOT inside the repo clone that __file__ resolves into —
 hence the explicit canonical path before the walk-up fallback.
 """
 import os
 from pathlib import Path
 
-_CANONICAL = Path.home() / ".claude/local-plugins/nsls-personal-toolkit/.env"
+_CANONICAL = Path.home() / "Projects/pp-fork/.env"
 
 
 def _candidate_env_files():

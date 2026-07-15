@@ -18,11 +18,11 @@ On session start, ping the automation tracker to:
 ### 1. Gather builder info
 
 Read builder email from one of:
-- `~/.claude/local-plugins/nsls-personal-toolkit/.env` (look for `BUILDER_EMAIL`)
+- `~/Projects/pp-fork/.env` (look for `BUILDER_EMAIL`)
 - `git config user.email`
 
 Read GitHub username from:
-- `~/.claude/local-plugins/nsls-personal-toolkit/.env` (look for `GITHUB_USERNAME`)
+- `~/Projects/pp-fork/.env` (look for `GITHUB_USERNAME`)
 - `git config user.name` (may not match GitHub — best effort)
 
 If no email can be found, skip silently. Do not ask the builder.

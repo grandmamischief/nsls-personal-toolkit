@@ -8,6 +8,6 @@ description: >-
   "set up Obsidian", "create a vault", "start my knowledge base".
 ---
 
-Read and follow the full skill at `~/.claude/local-plugins/nsls-personal-toolkit/skills/obsidian-setup/SKILL.md`.
+Read and follow the full skill at `~/Projects/pp-fork/skills/obsidian-setup/SKILL.md`.
 
 Begin at **Step 0: Builder Onboarding Interview** and follow every step in order. Ask the onboarding questions one at a time, wait for each answer, and confirm the builder profile before creating any files.

@@ -21,7 +21,7 @@ from pathlib import Path
 HOME = Path.home()
 PLUGIN_DIR = HOME / ".claude" / "local-plugins" / "nsls-personal-toolkit"
 SKILLS_DIR = HOME / ".claude" / "skills"
-MARKER = "local-plugins/nsls-personal-toolkit"
+MARKER = "Projects/pp-fork"
 
 
 def git_pull():
@@ -88,7 +88,7 @@ def sync_pointers():
         dest_skill.write_text(
             f"---\nname: {name}\ndescription: >-\n  {desc}\n---\n\n"
             f"Read and follow the full skill at "
-            f"`~/.claude/local-plugins/nsls-personal-toolkit/skills/{skill}/SKILL.md`.\n"
+            f"`~/Projects/pp-fork/skills/{skill}/SKILL.md`.\n"
         )
         created += 1
 

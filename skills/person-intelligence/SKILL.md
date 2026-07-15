@@ -14,9 +14,9 @@ description: >-
 
 Synthesizes rich person profiles into Obsidian (`30-people/[Name].md`) by pulling data from every available source: Fathom 1:1 transcripts, Airtable SLT meeting intelligence, Airtable People Ops, existing Obsidian notes, and conversation context.
 
-Read `OBSIDIAN_VAULT_PATH` from `~/.claude/local-plugins/nsls-personal-toolkit/.env`.
+Read `OBSIDIAN_VAULT_PATH` from `~/Projects/pp-fork/.env`.
 
-Scripts live at: `~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/`
+Scripts live at: `~/Projects/pp-fork/skills/person-intelligence/scripts/`
 
 ## Quick Start
 
@@ -34,18 +34,18 @@ Run these in parallel where possible. Each outputs JSON to stdout, status to std
 
 **Fathom 1:1s** (if email known):
 ```bash
-python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/fetch_fathom_1on1s.py \
+python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/fetch_fathom_1on1s.py \
   --email {email} --list
 ```
 
 **Airtable SLT** (if SLT member -- Gary, Adam, Ashleigh, Michael, Anish, Kevin):
 ```bash
-python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/fetch_airtable_slt.py "{name}" > /tmp/person-intel-slt.json
+python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/fetch_airtable_slt.py "{name}" > /tmp/person-intel-slt.json
 ```
 
 **Airtable People Ops** (if NSLS employee):
 ```bash
-python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/fetch_airtable_people_ops.py "{name}" > /tmp/person-intel-people-ops.json
+python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/fetch_airtable_people_ops.py "{name}" > /tmp/person-intel-people-ops.json
 ```
 
 **Signal — Quick Notes** (when `SIGNAL_INGEST=1` AND the person is `signal_eligible` — has an `@nsls.org` email, `tracking_reason` is not `key_relationship_external`, and the name is not in `SIGNAL_EXCLUDE` (default `{"Cory Capoccia"}` — this is how board members are excluded); see `list_relationships.py`):
@@ -57,7 +57,7 @@ vault) and emits the normalized, sensitivity-pre-screened signal:
 ```bash
 # 1. Call MCP tools for the slug (exec/manager scope): signal_person, signal_person_history,
 #    signal_person_goals. Assemble: {"slug":"...","person":<>,"history":<>,"goals":<>}
-echo "$RAW_BUNDLE" | python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/fetch_signal.py \
+echo "$RAW_BUNDLE" | python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/fetch_signal.py \
   --slug {kebab-name} --weeks 12 > /tmp/person-intel-signal.json
 # List direct-report slugs in scope:
 python3.12 .../scripts/fetch_signal.py --list-reports
@@ -84,12 +84,12 @@ and relationship context — coaching, not the number.
 
 Fetch transcripts and summarize each:
 ```bash
-python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/fetch_fathom_1on1s.py \
+python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/fetch_fathom_1on1s.py \
   --email {email} --fetch-all > /tmp/person-intel-meetings.jsonl
 
 # Summarize each meeting (one Claude API call per meeting)
 while IFS= read -r line; do
-  echo "$line" | python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/summarize_meeting.py
+  echo "$line" | python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/summarize_meeting.py
 done < /tmp/person-intel-meetings.jsonl > /tmp/person-intel-summaries.jsonl
 ```
 
@@ -101,7 +101,7 @@ done < /tmp/person-intel-meetings.jsonl > /tmp/person-intel-summaries.jsonl
 
 Assemble goals, actions, and topics from all sources into a JSON object and pipe to the inference engine:
 ```bash
-python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/infer_projects.py < /tmp/person-intel-data.json
+python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/infer_projects.py < /tmp/person-intel-data.json
 ```
 
 Input format: `{"goals": [...], "actions": [...], "topics": [...], "person_name": "..."}`
@@ -113,7 +113,7 @@ Input format: `{"goals": [...], "actions": [...], "topics": [...], "person_name"
 
 Assemble ALL collected data into a single JSON payload and synthesize:
 ```bash
-python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/synthesize_profile.py < /tmp/person-intel-combined.json > /tmp/person-intel-profile.md
+python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/synthesize_profile.py < /tmp/person-intel-combined.json > /tmp/person-intel-profile.md
 ```
 
 Input format:
@@ -187,7 +187,7 @@ The biweekly sweep is the recurring cadence that keeps every tracked relationshi
 ```bash
 OPERATING_USER_EMAIL=you@nsls.org \
 OBSIDIAN_VAULT_PATH=/path/to/vault \
-python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/biweekly_sweep.py
+python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/biweekly_sweep.py
 ```
 
 Outputs a manifest at `~/.cache/person-intelligence/biweekly-sweep-YYYY-MM-DD.manifest.json` listing each tracked relationship, last-synthesized date, count of new Fathom meetings since that date, and which ingest sources are available. The Claude orchestrator session reads this manifest and runs per-person synthesis as needed.
@@ -203,7 +203,7 @@ After per-person synthesis, run:
 ```bash
 ANTHROPIC_API_KEY=... \
 OBSIDIAN_VAULT_PATH=/path/to/vault \
-python3.12 ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/generate_team_pulse.py
+python3.12 ~/Projects/pp-fork/skills/person-intelligence/scripts/generate_team_pulse.py
 ```
 
 Writes `30-people/_pulse/YYYY-MM-DD-team-pulse.md` — one digest per cycle with cross-relational patterns:
@@ -225,7 +225,7 @@ The Rippling → Airtable → GitHub pipeline keeps `org-chart.json` fresh (hour
 
 ```bash
 OBSIDIAN_VAULT_PATH=/path/to/vault python3.12 \
-  ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/sync_obsidian_frontmatter.py --dry-run
+  ~/Projects/pp-fork/skills/person-intelligence/scripts/sync_obsidian_frontmatter.py --dry-run
 ```
 
 The sync controls exactly **5 frontmatter fields**: `email`, `slack`, `department`, `title`, `manager`. Every other field — `tags`, `role` (your curated description), `health*`, `last-synthesized`, `sources`, `meetings_attended` — is left untouched. Body content is byte-preserved (tests assert this). Always run `--dry-run` first to inspect proposed changes.
@@ -264,7 +264,7 @@ Identity comes from `OPERATING_USER_EMAIL` (or `BUILDER_EMAIL` as fallback). The
 Run manually with:
 ```bash
 OPERATING_USER_EMAIL=you@nsls.org python3.12 \
-  ~/.claude/local-plugins/nsls-personal-toolkit/skills/person-intelligence/scripts/list_relationships.py
+  ~/Projects/pp-fork/skills/person-intelligence/scripts/list_relationships.py
 ```
 
 ## Relationship Health Check
