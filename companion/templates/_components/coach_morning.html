@@ -7,6 +7,7 @@
     {% with when='morning', label="How's your energy this morning?", value=morning_energy %}{% include "_components/energy_row.html" %}{% endwith %}
   </div>
 
+  {% include "_components/todoist_sync.html" %}
   {% include "_components/plan_your_day.html" %}
 
   <div class="mt-6 flex justify-end">

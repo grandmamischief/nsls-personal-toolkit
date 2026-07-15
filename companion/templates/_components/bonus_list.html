@@ -10,6 +10,7 @@
            hx-swap="none"
            name="text"
            class="flex-1 border rounded px-3 py-2 text-sm">
+    {% with item = b %}{% include "_components/pp_chips.html" %}{% endwith %}
     <button hx-post="/delete-bonus"
             hx-vals='{"index": "{{ loop.index0 }}"}'
             hx-target="#bonus-list" hx-swap="outerHTML"

@@ -26,36 +26,37 @@
           <td class="px-2 py-1 text-center">
             <input type="checkbox" {% if s.taken == 'pri' %}checked{% endif %}
                    hx-post="/plan-action"
-                   hx-vals='{"text": {{ s.text|tojson }}, "action": "pri"{% if s.est %}, "est": "{{ '%g'|format(s.est) }}"{% endif %}}'
+                   hx-vals='{"text": {{ s.text|tojson }}, "action": "pri"{% if s.est %}, "est": "{{ '%g'|format(s.est) }}"{% endif %}{% if s.td %}, "td": {{ s.td|tojson }}{% endif %}}'
                    hx-trigger="change"
                    {% if plan.priorities|length >= 3 and s.taken != 'pri' %}disabled title="3 priorities already chosen"{% endif %}>
           </td>
           <td class="px-2 py-1 text-center">
             <input type="checkbox" {% if s.taken == 'bonus' %}checked{% endif %}
                    hx-post="/plan-action"
-                   hx-vals='{"text": {{ s.text|tojson }}, "action": "bonus"{% if s.est %}, "est": "{{ '%g'|format(s.est) }}"{% endif %}}'
+                   hx-vals='{"text": {{ s.text|tojson }}, "action": "bonus"{% if s.est %}, "est": "{{ '%g'|format(s.est) }}"{% endif %}{% if s.td %}, "td": {{ s.td|tojson }}{% endif %}}'
                    hx-trigger="change">
           </td>
           <td class="px-2 py-1 text-center">
             <input type="checkbox" {% if s.taken == 'deferred' %}checked{% endif %}
                    hx-post="/plan-action"
-                   hx-vals='{"text": {{ s.text|tojson }}, "action": "defer"}'
+                   hx-vals='{"text": {{ s.text|tojson }}, "action": "defer"{% if s.td %}, "td": {{ s.td|tojson }}{% endif %}}'
                    hx-trigger="change">
           </td>
           <td class="px-2 py-1 text-center">
             <input type="checkbox" {% if s.taken == 'done' %}checked{% endif %}
                    hx-post="/plan-action"
-                   hx-vals='{"text": {{ s.text|tojson }}, "action": "done"}'
+                   hx-vals='{"text": {{ s.text|tojson }}, "action": "done"{% if s.td %}, "td": {{ s.td|tojson }}{% endif %}}'
                    hx-trigger="change">
           </td>
           <td class="px-2 py-1 text-center">
             <input type="checkbox" {% if s.taken == 'deleted' %}checked{% endif %}
                    hx-post="/plan-action"
-                   hx-vals='{"text": {{ s.text|tojson }}, "action": "delete"}'
+                   hx-vals='{"text": {{ s.text|tojson }}, "action": "delete"{% if s.td %}, "td": {{ s.td|tojson }}{% endif %}}'
                    hx-trigger="change">
           </td>
           <td class="px-2 py-1">
             <span {% if s.taken in ('done', 'deleted', 'deferred') %}class="line-through text-stone-400"{% endif %}>{{ s.text }}</span>
+            {% with item = s %}{% include "_components/pp_chips.html" %}{% endwith %}
             {% if s.est %}<span class="text-xs ml-1" style="color:var(--nsls-teal)">~{{ '%g'|format(s.est) }}h left</span>{% endif %}
             {% if s.source %}<span class="text-xs text-stone-400 ml-1">({{ s.source }})</span>{% endif %}
           </td>
@@ -84,6 +85,7 @@
                  name="text"
                  autocomplete="off"
                  class="flex-1 nsls-input">
+          {% with item = plan.top3_td[i] %}{% include "_components/pp_chips.html" %}{% endwith %}
           <span class="nsls-est">
             <input type="text" inputmode="decimal" name="hours" autocomplete="off"
                    value="{{ '%g'|format(plan.top3_est[i]) if plan.top3_est is defined and plan.top3_est[i] else '' }}" placeholder="—"

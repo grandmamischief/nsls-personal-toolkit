@@ -21,6 +21,13 @@ from companion.parsers import (
 from companion.safe_write import safe_modify
 from companion.streak import DayResult, compute_concern, status_for, streak_days
 from companion.testmode import is_test_vault
+from companion.todoist import (
+    decorate as _td_decorate,
+    fmt_td as _fmt_td,
+    similar as _td_similar,
+    strip_td as _strip_td,
+    valid_payload as _td_valid_payload,
+)
 from companion.week_parsers import (
     parse_quick_notes,
     parse_stack_rank_table,
@@ -167,14 +174,16 @@ def _extract_numbered_checkbox_list(section: str, heading: str) -> list[dict]:
             text = after_num
         text, est = _strip_est(text)
         text, prog = _strip_progress(text)
+        text, td = _strip_td(text)
         if text:
-            items.append({
+            items.append(_td_decorate({
                 "text": text,
                 "checked": checked,
                 "progress": 100 if checked else prog,
                 "est": est,
+                "td": td,
                 "raw_index": raw,
-            })
+            }))
     return items
 
 
@@ -204,7 +213,8 @@ def _extract_numbered_checkbox_list_raw(section: str, heading: str) -> list[dict
                 text = after_num
             text, est = _strip_est(text)
             text, _ = _strip_progress(text)
-            items.append({"text": text, "checked": checked, "est": est})
+            text, td = _strip_td(text)
+            items.append({"text": text, "checked": checked, "est": est, "td": td})
     return items
 
 
@@ -333,6 +343,9 @@ def _extract_ai_suggestions(morning_section: str) -> list[dict]:
         # remaining estimate) BEFORE cleaning — the marker must never surface
         # as visible text, and it pre-fills the estimate when the item is taken.
         raw_text, est = _strip_est(list_m.group(1))
+        # Todoist marker rides ahead of cleaning, same as the estimate —
+        # it must never surface as visible text (personal fork).
+        raw_text, td = _strip_td(raw_text)
         cleaned = _clean_ai_item(raw_text)
         if not cleaned:
             continue
@@ -340,7 +353,8 @@ def _extract_ai_suggestions(morning_section: str) -> list[dict]:
         # behind if /close-day didn't fill them.
         if cleaned.lower().startswith(("item ", "highest-impact item", "task")):
             continue
-        items.append({"text": cleaned, "source": f"AI: {current_label}", "est": est})
+        items.append(_td_decorate(
+            {"text": cleaned, "source": f"AI: {current_label}", "est": est, "td": td}))
     return items
 
 
@@ -352,7 +366,10 @@ def _norm_suggestion(text: str) -> str:
     "(pers)"), a trailing parenthetical ("(~50% done)", "(from …)"), case, and
     extra whitespace — so the same task surfaced from two sources collapses to
     one key instead of showing twice."""
-    t = _SUGGESTION_TAG_RE.sub("", text.strip())
+    t, _ = _strip_td(text)                          # markers never affect identity
+    t, _ = _strip_est(t)
+    t, _ = _strip_progress(t)
+    t = _SUGGESTION_TAG_RE.sub("", t.strip())
     t = re.sub(r"\s*\([^)]*\)\s*$", "", t)          # trailing (...)
     return re.sub(r"\s+", " ", t).strip().lower()
 
@@ -390,9 +407,11 @@ def _extract_carryovers(vault_path: Path, today: str, lookback_days: int = 7) ->
         for it in _extract_top_3(morning) + _extract_bonus(morning):
             if it["text"] and not it["checked"] and _norm_suggestion(it["text"]) not in excluded:
                 # Carry the remaining time estimate so taking the suggestion
-                # pre-fills tomorrow's estimate field.
-                items.append({"text": it["text"], "source": f"from {candidate}",
-                              "est": it.get("est")})
+                # pre-fills tomorrow's estimate field — and the Todoist link,
+                # so a carried task stays the same Todoist task.
+                items.append(_td_decorate(
+                    {"text": it["text"], "source": f"from {candidate}",
+                     "est": it.get("est"), "td": it.get("td")}))
         if items:
             return items
     return []
@@ -415,6 +434,11 @@ def _extract_subsection_items(morning_section: str, heading: str) -> set[str]:
             break
         if in_section and stripped.startswith("- "):
             text = stripped[2:].strip()
+            # Disposition lines can carry a Todoist marker (personal fork) —
+            # identity is the visible text, so strip markers before comparing.
+            text, _ = _strip_td(text)
+            text, _ = _strip_est(text)
+            text, _ = _strip_progress(text)
             if text:
                 items.add(text)
     return items
@@ -474,14 +498,22 @@ def _build_plan_context(daily_md: str, vault_path: Path, today: str,
     # buried, even if close-day re-suggested it in today's AI sections.
     tombstones = _recent_dispositions(vault_path, today)
 
-    seen: set[str] = set()
+    by_key: dict[str, dict] = {}
     suggestions: list[dict] = []
     for item in (ai_items if ai_items else carryovers):
         key = _norm_suggestion(item["text"])
-        if key in seen or key in tombstones:
+        if key in tombstones:
             continue
-        seen.add(key)
-        suggestions.append(item)
+        prior = by_key.get(key)
+        if prior is None:
+            by_key[key] = item
+            suggestions.append(item)
+        elif item.get("td") and not prior.get("td"):
+            # Same task surfaced from two sources (e.g. plain carry-over AND a
+            # Todoist seed) — the marker-bearing copy wins so the link to the
+            # canonical Todoist task isn't lost (personal fork).
+            prior["td"] = item["td"]
+            _td_decorate(prior)
 
     priority_texts = {p["text"] for p in priorities if p.get("text")}
     bonus_texts = {b["text"] for b in bonus if b.get("text")}
@@ -508,22 +540,29 @@ def _build_plan_context(daily_md: str, vault_path: Path, today: str,
     raw_top3 = _extract_numbered_checkbox_list_raw(morning, "### My Top 3")
     top3_slots = [(raw_top3[i]["text"] if i < len(raw_top3) else "") for i in range(3)]
     top3_est = [(raw_top3[i].get("est") if i < len(raw_top3) else None) for i in range(3)]
+    # Per-slot Todoist chip context so linked Top 3 rows show provenance.
+    top3_td = [_td_decorate({"td": raw_top3[i].get("td") if i < len(raw_top3) else None})
+               for i in range(3)]
     return {
         "suggestions": suggestions,
         "priorities": priorities_with_text,
         "top3_slots": top3_slots,
         "top3_est": top3_est,
+        "top3_td": top3_td,
         "bonus": bonus_with_text,
     }
 
 
-def _add_to_subsection(md: str, heading: str, text: str) -> str:
+def _add_to_subsection(md: str, heading: str, text: str, td: str | None = None) -> str:
     """Append `text` as a `- ` item to `### <heading>` under `## Morning Check-in`.
 
     Creates the subsection if it doesn't exist, placing it at the end of
     Morning Check-in. `heading` is the bare title (e.g. "Done", "Deferred").
+    ``td`` (personal fork) appends the item's invisible Todoist marker so
+    close-day can sync the disposition to the canonical Todoist task.
     """
     full = f"### {heading}"
+    item_line = f"- {text}{_fmt_td(td) if td else ''}"
     lines = md.splitlines()
     section_idx = None
     morning_end = len(lines)
@@ -544,12 +583,12 @@ def _add_to_subsection(md: str, heading: str, text: str) -> str:
             if lines[j].startswith("### ") or lines[j].startswith("## "):
                 break
             insert_at = j + 1
-        lines.insert(insert_at, f"- {text}")
+        lines.insert(insert_at, item_line)
     else:
         insert_at = morning_end
         lines.insert(insert_at, "")
         lines.insert(insert_at + 1, full)
-        lines.insert(insert_at + 2, f"- {text}")
+        lines.insert(insert_at + 2, item_line)
         lines.insert(insert_at + 3, "")
 
     return "\n".join(lines) + ("\n" if md.endswith("\n") else "")
@@ -559,7 +598,19 @@ def _remove_from_subsection(md: str, heading: str, text: str) -> str:
     """Remove `text` from the `### <heading>` subsection; drop the heading if empty."""
     full = f"### {heading}"
     lines = md.splitlines()
-    target = f"- {text}"
+
+    def _bullet_text(line: str) -> str | None:
+        """Visible text of a `- ` line, markers stripped — matching must not
+        care whether the stored line carries a Todoist/est marker."""
+        s = line.strip()
+        if not s.startswith("- "):
+            return None
+        t = s[2:].strip()
+        t, _ = _strip_td(t)
+        t, _ = _strip_est(t)
+        t, _ = _strip_progress(t)
+        return t
+
     section_start = None
     section_end = None
     for i, line in enumerate(lines):
@@ -575,7 +626,7 @@ def _remove_from_subsection(md: str, heading: str, text: str) -> str:
 
     target_idx = None
     for i in range(section_start + 1, section_end):
-        if lines[i].strip() == target:
+        if _bullet_text(lines[i]) == text:
             target_idx = i
             break
     if target_idx is None:
@@ -704,6 +755,44 @@ def _set_nth_est(md: str, heading: str, index: int, hours: float | None) -> str:
             break
         seen += 1
     return "\n".join(lines) + ("\n" if md.endswith("\n") else "")
+
+
+def _set_nth_td(md: str, heading: str, index: int, td: str | None) -> str:
+    """Set/clear the ``<!--td:...-->`` Todoist marker on the Nth item under
+    `heading` (personal fork). Preserves text, checkbox, progress, and
+    estimate — only the Todoist marker is swapped. ``td`` None removes it.
+    """
+    lines = md.splitlines()
+    in_section = False
+    seen = 0
+    for i, line in enumerate(lines):
+        if line.strip() == heading:
+            in_section = True
+            continue
+        if in_section and (line.startswith("### ") or line.startswith("## ")):
+            break
+        if not in_section:
+            continue
+        m = _LIST_ITEM_RE.match(line)
+        if not m:
+            continue
+        if seen == index:
+            prefix, rest = m.group(1), m.group(2)
+            rest, _ = _strip_td(rest)             # drop any existing marker, keep the rest
+            marker = _fmt_td(td) if td else ""
+            lines[i] = f"{prefix}{rest}{marker}".rstrip()
+            break
+        seen += 1
+    return "\n".join(lines) + ("\n" if md.endswith("\n") else "")
+
+
+def _extract_todoist_sync(daily_md: str) -> list[str]:
+    """Non-empty lines of the top-level ``## Todoist Sync`` section — the
+    audit the open-day/close-day skills write after syncing Todoist (personal
+    fork). The companion renders them as a card; it never authors them.
+    """
+    body = parse_daily_note_sections(daily_md).get("Todoist Sync", "")
+    return [line.strip() for line in body.splitlines() if line.strip()]
 
 
 def _remove_nth_item(md: str, heading: str, index: int) -> str:
@@ -917,16 +1006,24 @@ def _set_nth_item_text(md: str, heading: str, index: int, text: str) -> str:
         has_box = rest[:3] in ("[ ]", "[x]", "[X]")
         marker = rest[:3] if has_box else "[ ]"
         body = rest[3:] if has_box else rest
-        existing_text = re.sub(r"<!--[pe]:.*?-->", "", body).strip()
+        body_no_td, td_payload = _strip_td(body)
+        existing_text = re.sub(r"<!--[pe]:.*?-->", "", body_no_td).strip()
         # Preserve trailing progress/estimate markers ONLY when the title is
         # unchanged (e.g. a checkbox toggle re-writing the same text). A genuine
         # rename — or a cleared slot reused by a new task — must NOT inherit the
         # previous task's progress/estimate, which would misstate its state.
         if existing_text == text.strip():
-            markers = re.findall(r"<!--[pe]:.*?-->", body)
+            markers = re.findall(r"<!--[pe]:.*?-->", body_no_td)
             suffix = (" " + " ".join(markers)) if markers else ""
         else:
             suffix = ""
+        # The Todoist link (personal fork) survives a wording tweak but not a
+        # slot reused for a different task — a stale link would make the next
+        # sync mutate the WRONG Todoist task, so ties break toward dropping.
+        if td_payload and text.strip() and (
+            existing_text == text.strip() or _td_similar(existing_text, text)
+        ):
+            suffix += _fmt_td(td_payload)
         lines[item_indices[index]] = f"{prefix}{marker} {text}".rstrip() + suffix
     else:
         # Append blank items up to and including the target index
@@ -1200,6 +1297,8 @@ def _build_day_context(app, daily_md: str, top_3: list, bonus: list, today: str)
         "stats": stats,
         "step": step,
         "plan": plan,
+        # Skill-authored Todoist audit (personal fork) — rendered as a card.
+        "todoist_sync": _extract_todoist_sync(daily_md),
     }
 
 
@@ -1996,7 +2095,9 @@ def create_app(vault_path: str) -> Flask:
             text = item["text"]
             if text in _extract_subsection_items(morning, "Deleted"):
                 return _remove_from_subsection(md, "Deleted", text)
-            return _add_to_subsection(md, "Deleted", text)
+            # Keep the Todoist link on the tombstone (personal fork) — the
+            # close-day sync deletes the canonical task from this record.
+            return _add_to_subsection(md, "Deleted", text, td=item.get("td"))
 
         safe_modify(note_path, update)
         broadcast(f"01-daily/{today}.md")
@@ -2092,6 +2193,11 @@ def create_app(vault_path: str) -> Flask:
                 return ("est must be a number", 400)
             if not math.isfinite(est) or est <= 0 or est > 24:
                 est = None  # bad carried value — take the item, drop the estimate
+        # Carried Todoist link (personal fork) — suggestion rows pass it so the
+        # taken/dispositioned item stays tied to its canonical Todoist task.
+        td = (request.form.get("td") or "").strip() or None
+        if td and not _td_valid_payload(td):
+            return ("invalid td", 400)
 
         today = _target_date()
         note_path = app.config["VAULT_PATH"] / "01-daily" / f"{today}.md"
@@ -2132,7 +2238,7 @@ def create_app(vault_path: str) -> Flask:
                 for i, b in enumerate(bonus_items):
                     if b.get("text") == text:
                         existing = _set_nth_item_text(existing, "### Bonus", i, "")
-                return _add_to_subsection(existing, DISPOSITIONS[action], text)
+                return _add_to_subsection(existing, DISPOSITIONS[action], text, td=td)
 
             # If the suggestion already sits in Top 3 / Bonus and the user
             # clicked the same column again, treat it as "untake" — clear it.
@@ -2156,9 +2262,13 @@ def create_app(vault_path: str) -> Flask:
             bonus_items = _extract_bonus(morning)
 
             def _place(md: str, heading: str, i: int) -> str:
-                """Write the item text and its carried estimate at slot i."""
+                """Write the item text, carried estimate, and Todoist link at slot i."""
                 md = _set_nth_item_text(md, heading, i, text)
-                return _set_nth_est(md, heading, i, est) if est else md
+                if est:
+                    md = _set_nth_est(md, heading, i, est)
+                if td:
+                    md = _set_nth_td(md, heading, i, td)
+                return md
 
             if action == "pri":
                 # Use _extract_numbered_checkbox_list with empty items to find

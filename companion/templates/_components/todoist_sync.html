@@ -1,0 +1,21 @@
+{# Todoist sync audit card (personal fork). Renders the skill-authored
+   `## Todoist Sync` section of the daily note — the companion never writes
+   these lines, it only surfaces them. Empty section → no card. #}
+{% if todoist_sync %}
+<div class="rounded mb-4" id="todoist-sync" style="border:1px solid var(--nsls-hairline)">
+  <div class="px-3 py-2 nsls-card-title nsls-divider" style="background:var(--nsls-lightblue)">
+    Todoist sync
+  </div>
+  <div class="px-3 py-2 text-sm space-y-1">
+    {% for line in todoist_sync %}
+      {% if line.startswith('*') and line.endswith('*') %}
+        <p class="text-xs nsls-subtle">{{ line.strip('*') }}</p>
+      {% elif line.startswith('- ') %}
+        <p>{{ line[2:] }}</p>
+      {% else %}
+        <p>{{ line }}</p>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

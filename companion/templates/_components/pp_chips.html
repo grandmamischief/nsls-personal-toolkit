@@ -1,0 +1,11 @@
+{# Todoist provenance chips (personal fork). Expects `item` with the td_*
+   fields todoist.decorate() adds. Renders nothing for unlinked items —
+   no chips = hand-typed / vault-only. AI-vs-carry origin stays the existing
+   "(AI: …)" / "(from YYYY-MM-DD)" source text on suggestion rows. #}
+{% if item and item.td %}
+<span class="pp-chips">
+  <span class="pp-chip pp-chip--t" title="Linked to Todoist{% if item.td_id %} (id {{ item.td_id }}){% endif %}">T</span>
+  {% if item.td_proj_label %}<span class="pp-chip {{ item.td_proj_cls }}" title="Todoist project">{{ item.td_proj_label }}</span>{% endif %}
+  {% if item.td_wk %}<span class="pp-chip pp-chip--wk" title="From the Week-Priority list — taking it for today adds today labels">wk</span>{% endif %}
+</span>
+{% endif %}

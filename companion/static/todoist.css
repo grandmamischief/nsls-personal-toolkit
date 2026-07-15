@@ -1,0 +1,35 @@
+/* Todoist provenance chips — personal fork (davo/todoist).
+   One consistent color per Todoist project, everywhere an item renders. */
+.pp-chips {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.pp-chip {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  padding: 0 6px;
+  border-radius: 9999px;
+  color: #fff;
+  white-space: nowrap;
+}
+.pp-chip--nsls   { background: #1e3a5f; }  /* NSLS navy */
+.pp-chip--wispr  { background: #7c3aed; }  /* WhisprCoach violet */
+.pp-chip--pers   { background: #16a34a; }  /* Personal green */
+.pp-chip--3b     { background: #0d9488; }  /* 3 Breaths teal */
+.pp-chip--gen    { background: #64748b; }  /* General slate */
+.pp-chip--inbox  { background: #d97706; }  /* Inbox amber */
+.pp-chip--t {
+  background: transparent;
+  color: #374151;
+  border: 1px solid #9ca3af;
+  font-weight: 700;
+}
+.pp-chip--wk {
+  background: transparent;
+  color: #6b7280;
+  border: 1px dashed #9ca3af;
+}

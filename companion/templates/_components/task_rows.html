@@ -15,6 +15,7 @@
       </td>
       <td class="tt-goal">
         <span class="nsls-row-text {% if item.progress >= 100 %}is-done{% elif item.deleted %}is-deleted{% endif %}">{{ item.text }}</span>
+        {% include "_components/pp_chips.html" %}
       </td>
       <td class="tt-est">
         <span class="nsls-est">
