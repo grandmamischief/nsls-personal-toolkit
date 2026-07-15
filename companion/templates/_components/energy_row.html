@@ -1,8 +1,11 @@
-<div id="energy-{{ when }}" class="flex items-center gap-3">
-  <span class="text-sm nsls-subtle w-44 shrink-0">{{ label }}</span>
-  <div class="flex gap-1">
-    {% for lvl, lbl in [("low", "Low"), ("medium", "Med"), ("high", "High")] %}
-    <button class="nsls-energy-btn {{ 'is-selected' if value == lvl else '' }}"
+{# Question + Low/Medium/High. The label wears the same card-title type as
+   every other section heading, and the segmented control is right-aligned so
+   it shares one vertical line with the Plan-your-day action clusters. #}
+<div id="energy-{{ when }}" class="flex items-center justify-between gap-3">
+  <span class="nsls-card-title">{{ label }}</span>
+  <div class="nsls-seg nsls-seg--words">
+    {% for lvl, lbl in [("low", "Low"), ("medium", "Medium"), ("high", "High")] %}
+    <button class="{{ 'is-current' if value == lvl else '' }}"
             hx-post="/set-energy" hx-vals='{"level":"{{ lvl }}","when":"{{ when }}"}'
             hx-target="#energy-{{ when }}" hx-swap="outerHTML">{{ lbl }}</button>
     {% endfor %}

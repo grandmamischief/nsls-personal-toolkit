@@ -359,7 +359,14 @@ def _norm_suggestion(text: str) -> str:
 
 def _extract_carryovers(vault_path: Path, today: str, lookback_days: int = 7) -> list[dict]:
     """Find the most recent prior daily note (up to ``lookback_days`` back)
-    and return its unchecked Top 3 + Bonus items as carry-over suggestions.
+    and return its unfinished items as carry-over suggestions.
+
+    Three sources within that note: unchecked Top 3 items, unchecked Bonus
+    items, and anything parked in `### Deferred` — Defer means "not today,
+    resurface tomorrow", so deferred items must come back even though their
+    Top 3 / Bonus slot was vacated. Each item carries its remaining time
+    estimate AND its progress marker so tomorrow's plan starts where today
+    stopped.
 
     Reads the SINGLE most-recent note rather than concatenating multiple days
     — once a builder has closed Monday's note, Tuesday's open items should
@@ -387,15 +394,58 @@ def _extract_carryovers(vault_path: Path, today: str, lookback_days: int = 7) ->
                       | _extract_subsection_items(morning, "Dismissed"))
         }
         items = []
+        seen_here: set[str] = set()
         for it in _extract_top_3(morning) + _extract_bonus(morning):
-            if it["text"] and not it["checked"] and _norm_suggestion(it["text"]) not in excluded:
-                # Carry the remaining time estimate so taking the suggestion
-                # pre-fills tomorrow's estimate field.
+            key = _norm_suggestion(it["text"])
+            if it["text"] and not it["checked"] and key not in excluded and key not in seen_here:
+                seen_here.add(key)
                 items.append({"text": it["text"], "source": f"from {candidate}",
-                              "est": it.get("est")})
+                              "est": it.get("est"),
+                              "progress": it.get("progress") or 0,
+                              "src_date": candidate, "deferred": False})
+        # Deferred items are stored as plain `- text` lines (their slot was
+        # cleared when deferred), sorted for a stable row order.
+        for raw in sorted(_extract_subsection_items(morning, "Deferred")):
+            text, est = _strip_est(raw)
+            text, prog = _strip_progress(text)
+            key = _norm_suggestion(text)
+            if text and key not in excluded and key not in seen_here:
+                seen_here.add(key)
+                items.append({"text": text, "source": f"deferred {candidate}",
+                              "est": est, "progress": prog,
+                              "src_date": candidate, "deferred": True})
         if items:
             return items
     return []
+
+
+def _carry_streaks(vault_path: Path, today: str, lookback_days: int = 7) -> dict[str, int]:
+    """How many of the last ``lookback_days`` daily notes each open item
+    appeared in (normalized text → note count). Feeds the "Carried N days"
+    tooltip so a task that keeps rolling forward wears its age."""
+    counts: dict[str, int] = {}
+    try:
+        base = datetime.strptime(today, "%Y-%m-%d")
+    except ValueError:
+        return counts
+    for offset in range(1, lookback_days + 1):
+        candidate = (base - timedelta(days=offset)).date().isoformat()
+        note_path = vault_path / "01-daily" / f"{candidate}.md"
+        if not note_path.exists():
+            continue
+        morning = parse_daily_note_sections(
+            note_path.read_text(encoding="utf-8")).get("Morning Check-in", "")
+        texts = {_norm_suggestion(i["text"])
+                 for i in _extract_top_3(morning) + _extract_bonus(morning)
+                 if i["text"]}
+        for raw in _extract_subsection_items(morning, "Deferred"):
+            t, _ = _strip_est(raw)
+            t, _ = _strip_progress(t)
+            if t:
+                texts.add(_norm_suggestion(t))
+        for t in texts:
+            counts[t] = counts.get(t, 0) + 1
+    return counts
 
 
 def _extract_subsection_items(morning_section: str, heading: str) -> set[str]:
@@ -453,12 +503,14 @@ def _build_plan_context(daily_md: str, vault_path: Path, today: str,
                        priorities: list, bonus: list) -> dict:
     """Build the Plan Your Day screen context: suggestions + carry-overs + taken state.
 
-    Suggestion source: when /close-day seeded `### AI Suggested: …` items, those
-    ARE the curated version of the carry-overs, so we show them *instead of* the
-    raw carry-overs — surfacing both showed every task twice (once reworded by
-    the AI, once raw), which is the duplication builders hit. Carry-overs are the
-    fallback only when there are no AI suggestions. Either way the list is
-    normalize-deduped so near-identical wording collapses to one row.
+    Suggestion source: the UNION of `### AI Suggested: …` items (close-day's
+    curated picks, shown first) and the prior note's unfinished items. The AI
+    picks only cover a Top-3's worth — every other unfinished Top 3 / Bonus /
+    Deferred item still surfaces, so nothing unfinished falls off the radar
+    (the continuous loop). The list is normalize-deduped so the same task from
+    two sources collapses to one row: AI wording wins, and the carry-over
+    twin's metadata (progress, estimate, source day, deferred flag) merges in
+    so the row still knows where it came from and how far along it is.
     """
     morning = parse_daily_note_sections(daily_md).get("Morning Check-in", "")
     ai_items = _extract_ai_suggestions(morning)
@@ -474,14 +526,60 @@ def _build_plan_context(daily_md: str, vault_path: Path, today: str,
     # buried, even if close-day re-suggested it in today's AI sections.
     tombstones = _recent_dispositions(vault_path, today)
 
+    carry_by_key = {_norm_suggestion(c["text"]): c for c in carryovers}
     seen: set[str] = set()
     suggestions: list[dict] = []
-    for item in (ai_items if ai_items else carryovers):
-        key = _norm_suggestion(item["text"])
+    for raw_item in ai_items:
+        key = _norm_suggestion(raw_item["text"])
         if key in seen or key in tombstones:
             continue
         seen.add(key)
+        item = dict(raw_item)
+        twin = carry_by_key.get(key)
+        if twin:
+            if item.get("est") is None:
+                item["est"] = twin.get("est")
+            item["progress"] = twin.get("progress") or 0
+            item["src_date"] = twin.get("src_date")
+            item["deferred"] = twin.get("deferred", False)
+        else:
+            item.setdefault("progress", 0)
         suggestions.append(item)
+    for c in carryovers:
+        key = _norm_suggestion(c["text"])
+        if key in seen or key in tombstones:
+            continue
+        seen.add(key)
+        suggestions.append(dict(c))
+
+    # Hover tooltip: where the item came from, how far along, what's left.
+    # This detail used to clutter the row as visible text; now the row is just
+    # circle + title + actions and the story lives on hover.
+    streaks = _carry_streaks(vault_path, today) if carryovers else {}
+    for s in suggestions:
+        parts = []
+        src_date = s.get("src_date")
+        if src_date:
+            try:
+                weekday = datetime.strptime(src_date, "%Y-%m-%d").strftime("%A")
+            except ValueError:
+                weekday = src_date
+            streak = streaks.get(_norm_suggestion(s["text"]), 0)
+            if s.get("deferred"):
+                parts.append(f"Deferred {weekday}")
+            elif streak >= 2:
+                parts.append(f"Carried {streak} days")
+            else:
+                parts.append(f"From {weekday}")
+        else:
+            # Keep the AI section label ("AI: Top 3" / "AI: Delegate These") —
+            # a delegate pick is a different kind of suggestion than a do-it.
+            parts.append(f"{s.get('source') or 'AI suggestion'} — new today")
+        if s.get("progress"):
+            parts.append(f"{s['progress']}% done")
+        if s.get("est"):
+            parts.append(f"~{_fmt_hours(s['est'])}h left")
+        s["tip"] = " · ".join(parts)
 
     priority_texts = {p["text"] for p in priorities if p.get("text")}
     bonus_texts = {b["text"] for b in bonus if b.get("text")}
@@ -514,6 +612,9 @@ def _build_plan_context(daily_md: str, vault_path: Path, today: str,
         "top3_slots": top3_slots,
         "top3_est": top3_est,
         "bonus": bonus_with_text,
+        # Raw slot count (blanks included) — the add-slot's write index, so a
+        # cleared row can't shift the append onto the wrong line.
+        "bonus_raw_count": _count_section_list_rows(daily_md, "### Bonus"),
     }
 
 
@@ -2027,6 +2128,18 @@ def create_app(vault_path: str) -> Flask:
                 return ("est must be a number", 400)
             if not math.isfinite(est) or est <= 0 or est > 24:
                 est = None  # bad carried value — take the item, drop the estimate
+        # Carried progress (suggestion rows pass the prior day's % complete) —
+        # the taken item starts at its carried % instead of 0, so the Command
+        # Center circle picks up exactly where yesterday stopped.
+        p_raw = (request.form.get("p") or "").strip()
+        prog: int | None = None
+        if p_raw:
+            try:
+                prog = int(p_raw)
+            except ValueError:
+                return ("p must be a number", 400)
+            if prog not in (25, 50, 75):
+                prog = None  # 0/100/odd carried value — take the item, drop the carry
 
         today = _target_date()
         note_path = app.config["VAULT_PATH"] / "01-daily" / f"{today}.md"
@@ -2091,9 +2204,14 @@ def create_app(vault_path: str) -> Flask:
             bonus_items = _extract_bonus(morning)
 
             def _place(md: str, heading: str, i: int) -> str:
-                """Write the item text and its carried estimate at slot i."""
+                """Write the item text, carried estimate, and carried progress
+                at slot i (each writer preserves the others' markers)."""
                 md = _set_nth_item_text(md, heading, i, text)
-                return _set_nth_est(md, heading, i, est) if est else md
+                if est:
+                    md = _set_nth_est(md, heading, i, est)
+                if prog:
+                    md = _set_nth_progress(md, heading, i, prog)
+                return md
 
             if action == "pri":
                 # Use _extract_numbered_checkbox_list with empty items to find
