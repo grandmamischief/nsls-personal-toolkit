@@ -33,3 +33,9 @@
   color: #6b7280;
   border: 1px dashed #9ca3af;
 }
+
+/* Redesign grid helper (personal fork): input + provenance chips share one
+   grid cell so chips don't break the Top 3 / Bonus column alignment. */
+.plan-item-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.plan-item-cell input { flex: 1 1 auto; min-width: 0; }
+.plan-item-cell .pp-chips { flex: none; }

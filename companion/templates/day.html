@@ -77,7 +77,7 @@
 </section>
 
 <section class="nsls-card">
-  <h2 class="nsls-card-title mb-3">Energy — end of day</h2>
+  {# The energy row's label is heading-styled, so no separate h2. #}
   {% with when='evening', label='How did you end the day?', value=evening_energy %}{% include "_components/energy_row.html" %}{% endwith %}
 </section>
 

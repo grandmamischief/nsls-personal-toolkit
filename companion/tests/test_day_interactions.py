@@ -328,22 +328,30 @@ def _plan_for(vault, today):
     return _build_plan_context(body, vault, today, _extract_top_3(morning), _extract_bonus(morning))
 
 
-def test_ai_suggestions_suppress_reworded_carryover_dupes(client_with_today):
-    """When close-day seeded AI suggestions, the raw carry-over they were built
-    from must NOT also show — that's the reworded duplicate builders hit."""
+def test_ai_and_carryover_suggestions_union(client_with_today):
+    """Suggestions are the UNION of AI picks and the prior note's unfinished
+    items (2026-07-15 policy change: AI-picks-only silently dropped every
+    unfinished item beyond a Top-3's worth — losing tasks was worse than the
+    occasional reworded double). Same-worded twins still collapse to one row
+    with the AI version winning; open-day now writes AI items with the
+    builder's text verbatim so twins normally match exactly."""
     client, vault = client_with_today
     today = date.today().isoformat()
     (vault / "01-daily" / f"{_yesterday(today)}.md").write_text(
-        "## Morning Check-in\n### My Top 3\n1. [ ] Port PP CLI to Cowork\n### Bonus\n"
+        "## Morning Check-in\n### My Top 3\n1. [ ] Port PP CLI to Cowork\n"
+        "### Bonus\n1. [ ] Water the plants\n"
     )
     (vault / "01-daily" / f"{today}.md").write_text(
         "## Morning Check-in\n"
-        "### AI Suggested: Top 3\n1. Finish the PP CLI Cowork port (~50% done)\n"
+        "### AI Suggested: Top 3\n1. Port PP CLI to Cowork (~50% done)\n"
         "### My Top 3\n1. [ ]\n2. [ ]\n3. [ ]\n### Bonus\n"
     )
     texts = [s["text"] for s in _plan_for(vault, today)["suggestions"]]
-    assert any("Finish the PP CLI Cowork port" in t for t in texts)
-    assert all("Port PP CLI to Cowork" not in t for t in texts)  # carry-over suppressed
+    # Same-task twin collapses to ONE row (the AI-curated wording — the
+    # trailing "(~50% done)" is ignored by the dedup key)…
+    assert sum(1 for t in texts if "Port PP CLI to Cowork" in t) == 1
+    # …while unfinished items the AI didn't pick still surface.
+    assert "Water the plants" in texts
 
 
 def test_deleted_items_do_not_carry_over(client_with_today):
