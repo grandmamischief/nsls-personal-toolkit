@@ -273,22 +273,6 @@ Check if today's daily note already exists and contains AI suggestions from last
 
 Look for `### AI Suggested: Top 3` and `### AI Suggested: Delegate These` sections. If found, extract both — these are the AI's overnight strategic recommendations.
 
-> **🛑 Delegation gate — check the profile before writing this section.** Read
-> `delegate_suggestions` from `$OBSIDIAN_VAULT_PATH/50-reference/builder-profile.md`.
-> When it is `false`/`off`, **omit the `### AI Suggested: Delegate These` section
-> entirely** — do not write an empty heading, and never suggest delegation in chat
-> either. When the field is absent but the profile has a `primary_client`, treat
-> that as a contractor engagement and default to **off**; ask once whether they
-> want delegate suggestions rather than generating them.
->
-> Why: a contractor has no one to delegate to. They were engaged to do the work,
-> and the people around them are the client's staff, not their reports. Handing
-> them a list that reassigns the client's employees is worse than noise — it
-> proposes something outside their authority and reads as presumptuous if the
-> note is ever shared.
-
-(If the gate is off, extract only `Top 3` and ignore any legacy Delegate section still present in an older note.)
-
 **2f. This week's stack rank (if strategy layer active)**
 
 Read the latest file from:
@@ -384,76 +368,29 @@ Also read:
 - `$OBSIDIAN_VAULT_PATH/40-learning/_weekly-plan.md` — today's micro-learning assignment
 - `$OBSIDIAN_VAULT_PATH/40-learning/_inbox.md` — count of unprocessed links for active goals
 
-**2j. Completed-work sweep — what's already done**
+**2j. Open PRs on watched repos**
 
-⚠️ **This step exists because task boards lie.** Asana due dates and GitHub cards keep showing work as open long after it shipped, because closing them out is manual and nobody does it. Seeding a builder's morning with finished work is worse than useless — it burns their trust in every other suggestion. So before presenting anything, check the sources that record *completion* rather than *intent*.
+Surface open pull requests on repos the builder maintains so they don't sit forgotten. Skip silently if `PR_WATCH_REPOS` is not set in `~/.claude/local-plugins/nsls-personal-toolkit/.env`, or if the `gh` CLI is unavailable.
 
-Run these in order and stop as soon as an item is confidently resolved. Both are cheap; neither requires scraping session transcripts.
+`PR_WATCH_REPOS` format: comma-separated `owner/repo` pairs.
+Example: `PR_WATCH_REPOS=thensls/nsls-builder-toolkit,thensls/nsls-personal-toolkit`
 
-**1. The builder's own recent daily notes (primary — they already have this).** A builder who runs `/close-day` is recording completion every evening. Read the last ~10 notes in `01-daily/` and collect:
-
-- `### Done` subsections under Morning Check-in (companion-written dispositions)
-- checked Top 3 / Bonus items (`- [x]`)
-- anything in `## Work Log` phrased as shipped/merged/finished
-
-This is the highest-precision source because it's the builder's own hand, scoped to their actual work. **It is only as fresh as their last close-day** — so check the date of the most recent note first. If the vault has a gap of more than a few days, say so in one line and lean on source 2 for the gap.
-
-**2. The most recent quicknote (covers the gap, and a whole week at once).** For builders who post a weekly quicknote, it's self-authored, names every live project, and carries a percent-complete per line — one search covers seven days and survives a stale vault:
-
-```
-slack_search_public_and_private(
-  query="from:<@$SLACK_USER_ID> quick note",
-  sort="timestamp",
-  limit=5,
-  include_context=false
-)
+```bash
+REPOS=$(grep '^PR_WATCH_REPOS=' ~/.claude/local-plugins/nsls-personal-toolkit/.env 2>/dev/null | cut -d= -f2- | tr -d ' ')
+# Safety: must have a non-empty list AND it must contain a slash (owner/repo).
+# Without this, `gh search prs --state open` would query all of GitHub.
+if [ -n "$REPOS" ] && [[ "$REPOS" == *"/"* ]] && command -v gh >/dev/null; then
+  gh search prs --state open --repo "$REPOS" --limit 30 \
+    --json number,title,author,repository,createdAt,isDraft \
+    2>/dev/null
+fi
 ```
 
-Lines reading `100% DONE`, `shipped`, `merged`, or sitting under a `WINS` heading are completions. **A project that has silently dropped out of the quicknote is a different signal** — usually killed or deprioritized, not finished. Flag it as "no longer appearing"; never record it as an achievement.
+Categorize results into two buckets:
+- **Yours sitting open** — `author.login == $GITHUB_USERNAME`. These are PRs the builder opened that haven't merged. Flag any older than 7 days.
+- **Waiting on you** — everything else, treated as needing the builder's review.
 
-**Deliberately NOT swept: Claude Code / cowork session transcripts.** Grepping session `.jsonl` files is slow and low-precision — transcripts are full of plans, abandoned attempts, and things the builder decided *against*, all phrased in completion language. The two sources above are faster and honest. If a builder's vault is stale *and* they post no quicknote, the correct answer is to say the completion data isn't there — not to guess from transcripts.
-
-**How to present what you find — as pre-checked Done rows, never as silent deletions:**
-
-Every item judged already-complete still goes into the candidate pool, in its own subsection, **with the Done control already checked** so the builder sees the call you made and can reverse it in one click.
-
-**The mechanism is the `### Done` subsection — there is no marker for this.** The companion sets a suggestion's state to `done` when its text also appears under `### Done` in the Morning Check-in (`_build_plan_context` in `companion/server.py`). So write the item **twice**: once in the candidate subsection so it renders as a row, and once under `### Done` so that row comes up pre-checked and struck through.
-
-```markdown
-### AI Suggested: Likely already done
-1. Ship the Instructional Design skill — quicknote 2026-08-15: "instructional-design skill now shipped"
-2. Builder Kit reinforcement — quicknote 2026-08-15: "Builder Kit repo (100% DONE)"
-
-### Done
-- Ship the Instructional Design skill
-- Builder Kit reinforcement
-```
-
-**Getting the match right — this is easy to get wrong.** The companion runs
-`_clean_ai_item` on every candidate line, which **cuts the text at the first
-` — ` / ` - ` separator** and keeps only what precedes it. So a candidate written
-`Ship the skill — quicknote 8/15: "shipped"` displays and keys as
-`Ship the skill`. The `### Done` line must equal **that truncated form** —
-bare task text, no citation. Writing the full cited line into `### Done`
-verbatim does NOT match and silently leaves the row unchecked (observed
-2026-08-23). Keep the evidence on the candidate line only; it still displays,
-because truncation affects the matching key, not the rendered row.
-
-**Expect fewer pre-checked rows than you listed, and don't fight it.**
-`_recent_dispositions` buries anything marked Done/Deleted/Dismissed in the
-previous **7 days** of notes. So an item the builder already closed last week
-will not appear at all — correctly; it is finished and gone. Only completions
-they have *not* already dispositioned surface as pre-checked rows. If your
-"Likely already done" list is mostly items from the last week's `### Done`
-sections, you are re-deriving work the builder already closed: check the recent
-notes first (source 1) and leave those out.
-
-Rules:
-- **Always cite the evidence inline** — source + date + the quoted phrase. The builder needs to audit the call, and a bare "likely done" is unauditable.
-- **Never hide the item.** Suppressing it silently means a genuinely-open task disappears with no trace. Pre-checked and visible is the honest default; the builder unchecks if you got it wrong.
-- **Only today's note pre-checks; prior days bury.** `_recent_dispositions` tombstones anything marked Done/Deleted in the *previous* week's notes, so a correctly-completed item won't resurface tomorrow — and if the builder unchecks a wrong call today, no tombstone is written. This is why pre-checking is safe and silent suppression is not.
-- **Separate "done" from "gone."** Work that vanished from the quicknote without a completion signal goes under `### AI Suggested: Possibly dropped` instead, and is **not** added to `### Done` — the builder confirms the kill rather than having it recorded as an achievement.
-- If a source disagrees with the board, **trust the completion source** and say so in one line — the board is the thing that's stale.
+Skip the entire section in Step 3 if both buckets are empty.
 
 **2k. SLT Meeting Actions — open items from the SLT knowledge base**
 
@@ -547,7 +484,7 @@ restorative_pct = round((sleep_deep_hrs + sleep_rem_hrs) / sleep_total_hrs * 100
 
 Restorative % (deep + REM as share of total sleep) is the closest proxy to "sleep quality score" derivable from Apple Health stage data. Typical healthy range: 25-50%.
 
-**⚠️ `hrv_ms` you read in the morning is PROVISIONAL — never make a training call on it.** Apple samples HRV opportunistically (irregular background spot checks plus every Breathe session and ECG), so the daily aggregate is an average of whatever samples have landed *so far*. Early in the day only a few overnight samples exist, and overnight samples run high — so the morning value is systematically optimistic and drifts down as daytime samples accumulate. Measured on Kevin's vault: 2026-07-29 read **66** in the morning and settled at **44**; 7/20 read 106 and settled at 63; 7/24 read 70 and settled at 49. Every divergence ran high.
+**⚠️ `hrv_ms` you read in the morning is PROVISIONAL — never make a training call on it.** Apple samples HRV opportunistically (irregular background spot checks plus every Breathe session and ECG), so the daily aggregate is an average of whatever samples have landed *so far*. Early in the day only a few overnight samples exist, and overnight samples run high — so the morning value is systematically optimistic and drifts down as daytime samples accumulate. Measured on a real vault: a morning reading of **66** settled at **44**; another read 106 and settled at 63; a third read 70 and settled at 49. Every divergence ran high.
 
 So: write the morning value to frontmatter (it's the best available), but treat it as provisional. `/close-day` overwrites it with the settled aggregate the next day (its Step 5a owns that backfill).
 
@@ -604,58 +541,98 @@ goal_cues = [{
 
 Skip this step silently if no goal files exist or none fire today.
 
-**2n. Issue-tracker sweep — the board where projects actually live**
+**2n. Completed-work sweep — what's already done**
 
-*Personal customization. Appended as the last 2-series step so it never renumbers
-the shared ones, keeping this fork's diff against upstream to a single block.*
+*Runs last on purpose.* This step reads every candidate the 2-series has
+gathered — Asana (2b), carry-overs (2c), seeded suggestions (2e), the stack
+rank (2f), watched PRs (2j), SLT actions (2k). A completion sweep placed
+mid-list cannot see the sources that run after it, and silently seeds finished
+work from them. **Any new candidate-producing step belongs before this one.**
 
-For builders who track project work on a GitHub **Projects board** rather than
-(or alongside) Asana, sweep it too. The board's status column (`Backlog` /
-`This Sprint` / `In Progress` / `Done`) is richer signal than a due date,
-because due dates go stale the moment a sprint slips while the column keeps
-getting moved.
+⚠️ **This step exists because task boards lie.** Asana due dates and GitHub cards keep showing work as open long after it shipped, because closing them out is manual and nobody does it. Seeding a builder's morning with finished work is worse than useless — it burns their trust in every other suggestion. So before presenting anything, check the sources that record *completion* rather than *intent*.
 
-Skip silently if neither var is set in `~/.claude/local-plugins/nsls-personal-toolkit/.env`,
-or if `gh` is unavailable.
+Run these in order and stop as soon as an item is confidently resolved. Both are cheap; neither requires scraping session transcripts.
 
-- `ISSUE_WATCH_PROJECT` — `owner/number` of a GitHub Projects v2 board. Example: `ISSUE_WATCH_PROJECT=thensls/37`
-- `ISSUE_WATCH_REPOS` — comma-separated `owner/repo` pairs for plain issue sweeps.
+**1. The builder's own recent daily notes (primary — they already have this).** A builder who runs `/close-day` is recording completion every evening. Read the last ~10 notes in `01-daily/` and collect:
 
-```bash
-ENVF=~/.claude/local-plugins/nsls-personal-toolkit/.env
-PROJ=$(grep '^ISSUE_WATCH_PROJECT=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d ' "')
-REPOS=$(grep '^ISSUE_WATCH_REPOS=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d ' "')
-ME=$(grep '^GITHUB_USERNAME=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d ' "')
+- `### Done` subsections under Morning Check-in (companion-written dispositions)
+- checked Top 3 / Bonus items (`- [x]`)
+- anything in `## Work Log` phrased as shipped/merged/finished
 
-# Board sweep. Guard on the owner/number shape so a malformed value can't
-# become an unscoped query.
-if [ -n "$PROJ" ] && [[ "$PROJ" == */* ]] && command -v gh >/dev/null; then
-  gh project item-list "${PROJ#*/}" --owner "${PROJ%/*}" --limit 100 --format json 2>/dev/null
-fi
+This is the highest-precision source because it's the builder's own hand, scoped to their actual work. **It is only as fresh as their last close-day** — so check the date of the most recent note first. If the vault has a gap of more than a few days, say so in one line and lean on source 2 for the gap.
 
-# Plain issue sweep. Must be non-empty AND contain a slash — without this,
-# `gh search issues` would query all of GitHub.
-if [ -n "$REPOS" ] && [[ "$REPOS" == */* ]] && command -v gh >/dev/null; then
-  gh search issues --state open --repo "$REPOS" --assignee "$ME" --limit 30 \
-    --json number,title,repository,updatedAt 2>/dev/null
-fi
+**2. The most recent quicknote (covers the gap, and a whole week at once).** For builders who post a weekly quicknote, it's self-authored, names every live project, and carries a percent-complete per line — one search covers seven days and survives a stale vault:
+
+```
+slack_search_public_and_private(
+  query="from:<@$SLACK_USER_ID> quick note",
+  sort="timestamp",
+  limit=5,
+  include_context=false
+)
 ```
 
-Keep only the builder's own items and rank by status column:
-- **In Progress** — strongest Top-3 candidates; already started.
-- **This Sprint** — committed for the sprint but not started.
-- **Backlog** — candidates, ranked below both of the above.
-- **Done** — never seed as a candidate. Feed these into Step 2j as completion
-  evidence instead.
+Lines reading `100% DONE`, `shipped`, `merged`, or sitting under a `WINS` heading are completions. **A project that has silently dropped out of the quicknote is a different signal** — usually killed or deprioritized, not finished. Flag it as "no longer appearing"; never record it as an achievement.
 
-**Dedupe against Asana before seeding.** On many setups the board and Asana
-mirror each other, so the same work arrives twice under slightly different
-titles. Collapse to one candidate and prefer the board's wording plus its
-status column — the status is the part Asana doesn't carry.
+**Deliberately NOT swept: Claude Code / cowork session transcripts.** Grepping session `.jsonl` files is slow and low-precision — transcripts are full of plans, abandoned attempts, and things the builder decided *against*, all phrased in completion language. The two sources above are faster and honest. If a builder's vault is stale *and* they post no quicknote, the correct answer is to say the completion data isn't there — not to guess from transcripts.
 
-**Then run it through Step 2j.** The board is exactly the kind of source that
-goes stale, so nothing from here is presented until the completion sweep has
-had a look at it. Board status is a ranking signal, not proof of openness.
+**How to present what you find — as pre-checked Done rows, never as silent deletions:**
+
+Every item judged already-complete still goes into the candidate pool, in its own subsection, **with the Done control already checked** so the builder sees the call you made and can reverse it in one click.
+
+**The mechanism is the `### Done` subsection — there is no marker for this.** The companion sets a suggestion's state to `done` when its text also appears under `### Done` in the Morning Check-in (`_build_plan_context` in `companion/server.py`). So write the item **twice**: once in the candidate subsection so it renders as a row, and once under `### Done` so that row comes up pre-checked and struck through.
+
+```markdown
+### AI Suggested: Likely already done
+1. Ship the reporting skill (quicknote 2026-08-15: "reporting skill now shipped")
+2. Docs site refresh (quicknote 2026-08-15: "docs site 100% DONE")
+
+### Done
+- Ship the reporting skill (quicknote 2026-08-15: "reporting skill now shipped")
+- Docs site refresh (quicknote 2026-08-15: "docs site 100% DONE")
+```
+
+**Cite in a trailing parenthetical — never after a dash.** This is the part that
+is easy to get wrong, and getting it wrong silently deletes the evidence the
+rule above depends on.
+
+`_extract_ai_suggestions` appends `{"text": cleaned}` and **discards the raw
+line**, where `cleaned` is `_clean_ai_item(raw)`. `_clean_ai_item` cuts at the
+first ` — ` / ` – ` / ` - ` separator (whitespace on *both* sides). So a
+dash-cited candidate loses its citation from the **rendered row as well as the
+matching key** — the builder sees a bare "likely done" with no source and
+cannot audit it. Parentheses and brackets pass through untouched, and a date
+like `2026-08-15` is safe inside one because its hyphens have no surrounding
+whitespace. Verified against `companion/server.py`:
+
+| Candidate line | What the builder sees |
+|---|---|
+| `Ship the reporting skill — quicknote 2026-08-15: "shipped"` | `Ship the reporting skill` — ❌ citation gone |
+| `Ship the reporting skill (quicknote 2026-08-15: "shipped")` | the full line — ✅ citation intact |
+
+**The `### Done` line must equal the rendered text character for character**,
+parenthetical included. The comparison is **exact and case-sensitive**:
+`_build_plan_context` tests `s["text"] in done` against the raw `- ` lines, with
+none of the normalisation `_norm_suggestion` applies elsewhere. Write the same
+full line in both places. A `### Done` line trimmed to the bare task text does
+NOT match a parenthetically-cited candidate, and silently leaves the row
+unchecked.
+
+**Expect fewer pre-checked rows than you listed, and don't fight it.**
+`_recent_dispositions` buries anything marked Done/Deleted/Dismissed in the
+previous **7 days** of notes. So an item the builder already closed last week
+will not appear at all — correctly; it is finished and gone. Only completions
+they have *not* already dispositioned surface as pre-checked rows. If your
+"Likely already done" list is mostly items from the last week's `### Done`
+sections, you are re-deriving work the builder already closed: check the recent
+notes first (source 1) and leave those out.
+
+Rules:
+- **Always cite the evidence inline, in a trailing parenthetical** — source + date + the quoted phrase. The builder needs to audit the call, and a bare "likely done" is unauditable. A dash-led citation is stripped before display, which produces exactly that unauditable row — see the matching rule above.
+- **Never hide the item.** Suppressing it silently means a genuinely-open task disappears with no trace. Pre-checked and visible is the honest default; the builder unchecks if you got it wrong.
+- **Only today's note pre-checks; prior days bury.** `_recent_dispositions` tombstones anything marked Done/Deleted in the *previous* week's notes, so a correctly-completed item won't resurface tomorrow — and if the builder unchecks a wrong call today, no tombstone is written. This is why pre-checking is safe and silent suppression is not.
+- **Separate "done" from "gone."** Work that vanished from the quicknote without a completion signal goes under `### AI Suggested: Possibly dropped` instead, and is **not** added to `### Done` — the builder confirms the kill rather than having it recorded as an achievement.
+- If a source disagrees with the board, **trust the completion source** and say so in one line — the board is the thing that's stale.
 
 ### Step 3: Draft Morning Check-in
 
@@ -680,7 +657,7 @@ For each `goal_cues` entry:
 2. [AI suggestion 2]
 3. [AI suggestion 3]
 
-**Delegate:** *(omit this whole block when the delegation gate is off)*
+**Delegate:**
 1. [Delegate item 1] → [Person]
 2. [Delegate item 2] → [Person]
 3. [Delegate item 3] → [Person]
@@ -727,7 +704,7 @@ The script returns JSON with `surfaced_actions` (people-coaching actions), `role
 - Hard cap: 3 across today — `🎯` actions + the `🪑` role cue combined (the script enforces this: when `role_cue` is non-null, `surfaced_actions` holds at most 2)
 - The `🪑` line is seat-coaching (from /role-coach's ledger), not person-coaching — render it last, omit when `role_cue` is null
 - Distribute across people first (one per scheduled person before stacking)
-- Two-way coaching: if your manager is in today's calendar (e.g., Gary 1:1),
+- Two-way coaching: if your manager is in today's calendar (e.g., a manager 1:1),
   their managing-up actions surface here too
 - If `sweep_status.exit_code != 0` or last sweep was >18 days ago, show a
   one-line alert: `⚠️ Last person-intelligence sweep failed/stale — run
@@ -772,7 +749,7 @@ Notes never touch the vault — both return only distilled, sensitivity-screened
 
 **Rules:**
 - One line per bucket; drop any bucket that's null for that person.
-- **🌱 Develop — deliver it with GAIN (Jack Cohen's feedback framework).** Frame toward the gain,
+- **🌱 Develop — deliver it with GAIN (Jack Donnelly's feedback framework).** Frame toward the gain,
   not the pain. Walk the four steps in order:
   - **G — Goal:** name what you *both* gain from the change ("I want us to ship faster"). Same-team signal, not a complaint.
   - **A — Actions:** observable behavior, no judgment ("the last handoff skipped the customer research").
@@ -812,23 +789,15 @@ Notes never touch the vault — both return only distilled, sensitivity-screened
 
 *+[N] in strategic backlog. Full list in Airtable `${SLT_BASE_ID}/tblasgjUjadHCqzrg`.*
 
-### Sprint board ([N] in progress, [N] this sprint)
+### Open PRs ([waiting] waiting, [yours] yours)
 
-*From Step 2j. Skip this entire section if no board is configured or it returns nothing.*
+*Skip this entire section if both lists are empty.*
 
-**In progress:**
-- `repo#NN` — Title
+**Waiting on your review:**
+- `repo#NN` — author — Title (opened YYYY-MM-DD, [N]d open)
 
-**This sprint:**
-- `repo#NN` — Title
-
-### Likely already done ([N])
-
-*From Step 2j. Skip if nothing came back. Each line cites its evidence — the builder is auditing your call, not taking it on faith.*
-
-- ~~[Item]~~ — [source] [date]: "[quoted phrase]"
-
-*[N] more no longer appear in the quicknote — possibly dropped rather than finished.*
+**Yours sitting open:**
+- `repo#NN` — Title (opened YYYY-MM-DD, [N]d open) ⚠️ if >7d
 
 ### Also on the plate
 - [ ] [Due today / Do today tasks]
@@ -858,7 +827,7 @@ If NO AI suggestions were seeded, skip the "Last Night's AI Suggestions" section
 - If the project is in this week's Top 5 stack rank, show the rank (`*(week rank: 3)*`).
 - If the project exists but isn't in this week's Top 5, show `*(not in week's Top 5)*` — this is an explicit signal the builder is spending a Top 3 slot on something not ranked for the week (sometimes right, sometimes a drift to flag).
 - If no project home exists (pure people work, goals, one-off tasks), omit the link and rank annotation.
-- Example: `"Get Chelsea comp package settled — [[product-team-recruiting]] *(week rank: 5)*"`
+- Example: `"Get the open ops-lead offer settled — [[product-team-recruiting]] *(week rank: 5)*"`
 
 Ask the builder to confirm the project mapping if ambiguous rather than guessing silently.
 
@@ -885,14 +854,14 @@ After the builder confirms their Top 3 and before scheduling, check whether any 
 
 Top 3 matches detected:
   [1] "Retreat logistics lockdown" → matches 4 SLT actions:
-      - rec123 "Order Thu lunch via Katie's sheet"
+      - rec123 "Order Thu lunch via the ops sheet"
       - rec456 "Bring wired setup for offsite tech"
-      - rec789 "Schedule buddy check-ins w/ Chelsea"
+      - rec789 "Schedule buddy check-ins w/ Rhea"
       - recABC "Research non-Bluetooth speaker-attributed recorder"
 
 Other SLT items ripe for promotion:
-  - recDEF "Follow up with Matt MacInnis at Rippling" (overdue 5+ weeks)
-  - recGHI "Email Anish & Heather re: Red's comp"
+  - recDEF "Follow up with our HRIS vendor rep" (overdue 5+ weeks)
+  - recGHI "Reply to the open HR question from Monday"
 
 Which should I shadow to Asana? (comma list of rec IDs, "all", or "none")
 ```
@@ -1068,19 +1037,7 @@ hrv_ms: 61
 [preserved from close-day seed if it existed]
 
 ### AI Suggested: Delegate These
-[preserved from close-day seed if it existed — OMIT this heading entirely when
- the delegation gate is off; see Step 2e]
-
-### AI Suggested: Likely already done
-[from Step 2j — each line carries its evidence citation. Every item here MUST
- also be listed under `### Done` below, which is what pre-checks its row.]
-
-### AI Suggested: Possibly dropped
-[from Step 2j — vanished from the quicknote with no completion signal. These
- are NOT added to `### Done`; the builder confirms the kill themselves.]
-
-### Done
-[bare task text only, one per line, matching the "Likely already done" entries]
+[preserved from close-day seed if it existed]
 
 <!-- AI-Suggested item format — write each item as a PLAIN numbered line:
        1. <item text> <!--e:0.75-->
