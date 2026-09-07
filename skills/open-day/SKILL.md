@@ -273,6 +273,22 @@ Check if today's daily note already exists and contains AI suggestions from last
 
 Look for `### AI Suggested: Top 3` and `### AI Suggested: Delegate These` sections. If found, extract both — these are the AI's overnight strategic recommendations.
 
+> **🛑 Delegation gate — check the profile before writing this section.** Read
+> `delegate_suggestions` from `$OBSIDIAN_VAULT_PATH/50-reference/builder-profile.md`.
+> When it is `false`/`off`, **omit the `### AI Suggested: Delegate These` section
+> entirely** — do not write an empty heading, and never suggest delegation in chat
+> either. When the field is absent but the profile has a `primary_client`, treat
+> that as a contractor engagement and default to **off**; ask once whether they
+> want delegate suggestions rather than generating them.
+>
+> Why: a contractor has no one to delegate to. They were engaged to do the work,
+> and the people around them are the client's staff, not their reports. Handing
+> them a list that reassigns the client's employees is worse than noise — it
+> proposes something outside their authority and reads as presumptuous if the
+> note is ever shared.
+
+(If the gate is off, extract only `Top 3` and ignore any legacy Delegate section still present in an older note.)
+
 **2f. This week's stack rank (if strategy layer active)**
 
 Read the latest file from:
@@ -634,6 +650,64 @@ Rules:
 - **Separate "done" from "gone."** Work that vanished from the quicknote without a completion signal goes under `### AI Suggested: Possibly dropped` instead, and is **not** added to `### Done` — the builder confirms the kill rather than having it recorded as an achievement.
 - If a source disagrees with the board, **trust the completion source** and say so in one line — the board is the thing that's stale.
 
+**2o. Issue-tracker sweep — the board where projects actually live**
+
+*Personal customization. Appended after the shared steps so it never renumbers
+them, keeping this fork's diff against upstream to a single block. It sits AFTER
+2n, which is the one step that must run last — so this step does not present
+anything directly: every candidate it produces is handed back through 2n's
+completion checks before it can reach the note. That satisfies 2n's rule ("any
+new candidate-producing step belongs before this one") by routing rather than
+by position.*
+
+For builders who track project work on a GitHub **Projects board** rather than
+(or alongside) Asana, sweep it too. The board's status column (`Backlog` /
+`This Sprint` / `In Progress` / `Done`) is richer signal than a due date,
+because due dates go stale the moment a sprint slips while the column keeps
+getting moved.
+
+Skip silently if neither var is set in `~/.claude/local-plugins/nsls-personal-toolkit/.env`,
+or if `gh` is unavailable.
+
+- `ISSUE_WATCH_PROJECT` — `owner/number` of a GitHub Projects v2 board. Example: `ISSUE_WATCH_PROJECT=thensls/37`
+- `ISSUE_WATCH_REPOS` — comma-separated `owner/repo` pairs for plain issue sweeps.
+
+```bash
+ENVF=~/.claude/local-plugins/nsls-personal-toolkit/.env
+PROJ=$(grep '^ISSUE_WATCH_PROJECT=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d ' "')
+REPOS=$(grep '^ISSUE_WATCH_REPOS=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d ' "')
+ME=$(grep '^GITHUB_USERNAME=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d ' "')
+
+# Board sweep. Guard on the owner/number shape so a malformed value can't
+# become an unscoped query.
+if [ -n "$PROJ" ] && [[ "$PROJ" == */* ]] && command -v gh >/dev/null; then
+  gh project item-list "${PROJ#*/}" --owner "${PROJ%/*}" --limit 100 --format json 2>/dev/null
+fi
+
+# Plain issue sweep. Must be non-empty AND contain a slash — without this,
+# `gh search issues` would query all of GitHub.
+if [ -n "$REPOS" ] && [[ "$REPOS" == */* ]] && command -v gh >/dev/null; then
+  gh search issues --state open --repo "$REPOS" --assignee "$ME" --limit 30 \
+    --json number,title,repository,updatedAt 2>/dev/null
+fi
+```
+
+Keep only the builder's own items and rank by status column:
+- **In Progress** — strongest Top-3 candidates; already started.
+- **This Sprint** — committed for the sprint but not started.
+- **Backlog** — candidates, ranked below both of the above.
+- **Done** — never seed as a candidate. Feed these into Step 2n as completion
+  evidence instead.
+
+**Dedupe against Asana before seeding.** On many setups the board and Asana
+mirror each other, so the same work arrives twice under slightly different
+titles. Collapse to one candidate and prefer the board's wording plus its
+status column — the status is the part Asana doesn't carry.
+
+**Then run it through Step 2n.** The board is exactly the kind of source that
+goes stale, so nothing from here is presented until the completion sweep has
+had a look at it. Board status is a ranking signal, not proof of openness.
+
 ### Step 3: Draft Morning Check-in
 
 Present to the builder. If AI suggestions were seeded by close-day, show them first:
@@ -657,7 +731,7 @@ For each `goal_cues` entry:
 2. [AI suggestion 2]
 3. [AI suggestion 3]
 
-**Delegate:**
+**Delegate:** *(omit this whole block when the delegation gate is off)*
 1. [Delegate item 1] → [Person]
 2. [Delegate item 2] → [Person]
 3. [Delegate item 3] → [Person]
@@ -1037,7 +1111,8 @@ hrv_ms: 61
 [preserved from close-day seed if it existed]
 
 ### AI Suggested: Delegate These
-[preserved from close-day seed if it existed]
+[preserved from close-day seed if it existed — OMIT this heading entirely when
+ the delegation gate is off; see Step 2e]
 
 <!-- AI-Suggested item format — write each item as a PLAIN numbered line:
        1. <item text> <!--e:0.75-->
